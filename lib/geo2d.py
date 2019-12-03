@@ -35,9 +35,21 @@ class Point:
         return '({0}, {1})'.format(self.x, self.y)
 
 
-NORTH = Point(0, -1)
-SOUTH = Point(0, 1)
-EAST = Point(1, 0)
-WEST = Point(-1, 0)
+NORTH = UP = Point(0, -1)
+SOUTH = DOWN = Point(0, 1)
+EAST = RIGHT = Point(1, 0)
+WEST = LEFT = Point(-1, 0)
 
 DIRECTIONS = [NORTH, EAST, SOUTH, WEST]
+
+DIRECTION_MAP = {
+    'U': NORTH,
+    'D': SOUTH,
+    'R': EAST,
+    'L': WEST,
+
+    'N': NORTH,
+    'S': SOUTH,
+    'E': EAST,
+    'W': WEST
+}
