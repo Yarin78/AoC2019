@@ -9,4 +9,5 @@ from aocd import data, submit
 lines = data.strip().split('\n')
 #prog = intcode.Program(data)
 
-# submit(cnt, part="a", day=1, year=2019)
+# submit(?, part="a", day=?, year=2019)
+# submit(?, part="b", day=?, year=2019)
