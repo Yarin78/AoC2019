@@ -14,7 +14,7 @@ OPCODE_JUMP_TRUE = 5
 OPCODE_JUMP_FALSE = 6
 OPCODE_LESS_THAN = 7
 OPCODE_EQUALS = 8
-OPCODE_EXIT = 99
+OPCODE_HALT = 99
 
 class Program(object):
 
@@ -172,12 +172,13 @@ class Program(object):
     def opcode_exit(self):
         self.halted = True
 
+    # (function, mnemonic, length, lvalue param)
     opcodes = {
         OPCODE_ADD: (opcode_add, 'ADD', 4, 3),
         OPCODE_MUL: (opcode_mul, 'MUL', 4, 3),
         OPCODE_IN: (opcode_in, 'IN', 2, 1),
         OPCODE_OUT: (opcode_out, 'OUT', 2, -1),
-        OPCODE_EXIT: (opcode_exit, 'EXIT', 1, -1),
+        OPCODE_HALT: (opcode_exit, 'HALT', 1, -1),
         OPCODE_JUMP_TRUE: (opcode_jump_true, 'JMPT', 3, -1),
         OPCODE_JUMP_FALSE: (opcode_jump_false, 'JMPF', 3, -1),
         OPCODE_LESS_THAN: (opcode_less_than, 'LT', 4, 3),
