@@ -1,7 +1,9 @@
 import sys
 from collections import defaultdict
-from lib import util, intcode
+from lib import util
 from queue import Queue
+from lib.geo2d import *
+from lib.intcode import *
 from aocd import data, submit
 
 # Make sure AOC_SESSION is updated! (Chrome inspector -> Application tab -> session)
