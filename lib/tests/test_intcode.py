@@ -64,17 +64,17 @@ def test_adder():
     output = prog.run([5], output=ReturnSink())
     assert output == [6]
 
-def test_simple_pipe():
+def test_sequence_pipe():
     adder_code = "3,0,1001,0,1,0,4,0,99"
     prog1 = Program(adder_code, 1)
     prog2 = Program(adder_code, 2)
-    pipe = Queue()
-    prog1.init_io([5], pipe)
-    prog2.init_io(pipe, output=ReturnSink())
-    result = parallel_executor([prog1, prog2])
-    assert result == [None, [7]]
+    prog3 = Program(adder_code, 3)
+    all_progs = [prog1, prog2, prog3]
+    wire_up_serial(all_progs, [5], ReturnSink())
+    result = parallel_executor(all_progs)
+    assert result == [None, None, [8]]
 
-def test_tee_pipe():
+def test_duplicate_joined_pipe():
     init_code = "3,0,1001,0,1,0,4,0,3,0,1001,0,2,0,4,0,99"  # out = <in>+1, out = <in>+2
     add_code = "3,0,3,1,1,0,1,2,4,2,99"  # out = <in>+<in>
     mul_code = "3,0,3,1,2,0,1,2,4,2,99"  # out = <in>*<in>
@@ -90,10 +90,10 @@ def test_tee_pipe():
     a = 13
     b = 17
 
-    prog1.init_io([a, b], TeeSink(pipe12, pipe13))
+    prog1.init_io([a, b], DuplicateSink([pipe12, pipe13]))
     prog2.init_io(pipe12, pipe24)
     prog3.init_io(pipe13, pipe34)
-    prog4.init_io(JoinedSource(pipe24, pipe34), output=ReturnSink())
+    prog4.init_io(JoinedSource([pipe24, pipe34]), output=ReturnSink())
     result = parallel_executor([prog1, prog2, prog3, prog4])
 
     expected = ((a+1)+(b+2)) * ((a+1)*(b+2))

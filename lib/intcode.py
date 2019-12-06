@@ -187,8 +187,14 @@ class Program(object):
 
     def opcode_in(self, x):
         if BLOCK_ON_EOF:
-            self.write(x, self.input.get())
-            self.blocked_on_input = False
+            try:
+                self.write(x, self.input.get())
+                self.blocked_on_input = False
+            except Empty:
+                # If we have multiple queues as input, this can happen because
+                # we have no good way of blocking.
+                self.blocked_on_input = True
+                return self.ip
         elif CRASH_ON_EOF:
             self.write(x, self.input.get_nowait())
             self.blocked_on_input = False
@@ -238,6 +244,13 @@ class Program(object):
         OPCODE_LESS_THAN: (opcode_less_than, 'LT', 4, 3),
         OPCODE_EQUALS: (opcode_equals, 'EQ', 4, 3)
     }
+
+
+def wire_up_serial(programs, input, output):
+    '''Connects multiple programs with each other in a sequence.'''
+    pipes = [Queue() for _ in range(len(programs) - 1)]
+    for i in range(len(programs)):
+        programs[i].init_io(pipes[i-1] if i > 0 else input, pipes[i] if i < len(programs) - 1 else output)
 
 
 def parallel_executor(programs):
@@ -314,36 +327,32 @@ class StdinSource(object):
         return int(s)
 
 class JoinedSource(object):
-    def __init__(self, q1, q2):
-        self.q1 = q1
-        self.q2 = q2
+    '''Gets input from multiple sources.'''
+    def __init__(self, queues):
+        self.queues = queues
 
     def get(self):
-        # Need multiprocessing queues here
-        while True:
-            try:
-                return self.q1.get_nowait()
-            except Empty:
-                try:
-                    return self.q2.get_nowait()
-                except Empty:
-                    pass
+        # No good way of doing a blocking get here
+        return self.get_nowait()
 
     def get_nowait(self):
         # Need multiprocessing queues here
-        try:
-            return self.q1.get_nowait()
-        except Empty:
-            return self.q2.get_nowait()
+        for q in self.queues:
+            try:
+                return q.get_nowait()
+            except Empty:
+                pass
+        raise Empty()
 
-class TeeSink(object):
-    def __init__(self, q1, q2):
-        self.q1 = q1
-        self.q2 = q2
+class DuplicateSink(object):
+    '''Sends the same output to multiple output sources.'''
+    def __init__(self, queues):
+        self.queues = queues
 
     def put(self, x):
-        self.q1.put(x)
-        self.q2.put(x)
+        for q in self.queues:
+            q.put(x)
+
 
 if __name__ == "__main__":
     adder_code = "3,0,1001,0,1,0,4,0,99"
