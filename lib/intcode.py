@@ -188,7 +188,8 @@ class Program(object):
     def opcode_in(self, x):
         if BLOCK_ON_EOF:
             try:
-                self.write(x, self.input.get())
+                self.last_in = self.input.get()
+                self.write(x, self.last_in)
                 self.blocked_on_input = False
             except Empty:
                 # If we have multiple queues as input, this can happen because
@@ -196,13 +197,14 @@ class Program(object):
                 self.blocked_on_input = True
                 return self.ip
         elif CRASH_ON_EOF:
-            self.write(x, self.input.get_nowait())
+            self.last_in = self.input.get_nowait()
+            self.write(x, self.last_in)
             self.blocked_on_input = False
         else:
             try:
-                value = self.input.get_nowait()
-                logger.info('%2d        Read %d' % (self.prog_id, value))
-                self.write(x, value)
+                self.last_in = self.input.get_nowait()
+                logger.info('%2d        Read %d' % (self.prog_id, self.last_in))
+                self.write(x, self.last_in)
                 self.blocked_on_input = False
             except Empty:
                 logger.info('%2d        Blocked' % (self.prog_id))
@@ -210,6 +212,7 @@ class Program(object):
                 return self.ip
 
     def opcode_out(self, x):
+        self.last_out = x
         self.output.put(x)
 
     def opcode_jump_true(self, x, y):
