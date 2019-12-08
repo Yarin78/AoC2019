@@ -103,7 +103,7 @@ class Program(object):
     def _run(self, steps=0):
         if steps:
             while steps > 0 and self.step():
-                pass
+                steps -= 1
         else:
             while self.step():
                 pass
@@ -204,15 +204,16 @@ class Program(object):
                 opcode_addr = addr
                 if opcode in self.opcodes:
                     (asm, code) = self.decode(addr)
-                    #if self.instr_count[addr]:
-                    #    code = '%-50s [%d]' % (code, self.instr_count[addr])
                     (_, _, length, _) = self.opcodes[opcode]
                     addr += length
                 else:
                     code = 'DB %d' % opcode
                     addr += 1
 
-                print('%-30s#%5d: %-20s' % (code, opcode_addr, asm))
+                line = '%-30s#%5d: %-20s' % (code, opcode_addr, asm)
+                if self.instr_count[opcode_addr]:
+                    line += '[%6d]' % (self.instr_count[opcode_addr])
+                print(line)
                 if opcode == OPCODE_HALT:
                     print()
         except:
