@@ -18,5 +18,4 @@ max_onetwo = max([x.count('1')*x.count('2') for x in layers if x.count('0') == m
 print(max_onetwo)
 
 for y in range(6):
-    print(''.join('.#'[ord(next(dropwhile(lambda x:x=='2', [layers[i][y*25+x] for i in range(100)])))-48]
-          for x in range(25)))
+    print(''.join(['.#'[ord(''.join([layers[i][y*25+x] for i in range(100)]).replace('2', '')[0])-48] for x in range(25)]))
