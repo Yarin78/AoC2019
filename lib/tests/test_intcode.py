@@ -74,6 +74,16 @@ def test_sequence_pipe():
     result = parallel_executor(all_progs)
     assert result == [None, None, [8]]
 
+def test_sequence_pipe_threaded():
+    adder_code = "3,0,1001,0,1,0,4,0,99"
+    prog1 = Program(adder_code, 1)
+    prog2 = Program(adder_code, 2)
+    prog3 = Program(adder_code, 3)
+    all_progs = [prog1, prog2, prog3]
+    wire_up_serial(all_progs, [5], ReturnSink())
+    result = threaded_executor(all_progs)
+    assert result == [None, None, [8]]
+
 def test_duplicate_joined_pipe():
     init_code = "3,0,1001,0,1,0,4,0,3,0,1001,0,2,0,4,0,99"  # out = <in>+1, out = <in>+2
     add_code = "3,0,3,1,1,0,1,2,4,2,99"  # out = <in>+<in>

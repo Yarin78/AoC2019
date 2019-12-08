@@ -1,5 +1,6 @@
 from collections import defaultdict
 from queue import Queue, Empty
+import concurrent.futures
 import functools
 import logging
 import sys
@@ -11,7 +12,7 @@ UNSAFE_RW = True  # 4 times faster
 # Behaviour when trying to read and there is nothing on the input
 # Default is to pause the machine (and not update the IP)
 CRASH_ON_EOF = False  # Raise exception if trying to read from input when there is no data
-BLOCK_ON_EOF = False  # Block calling thread if trying to read from input when there is no data
+BLOCK_ON_EOF = False   # Block calling thread if trying to read from input when there is no data
 
 
 # The parameters are called x, y, z
@@ -46,6 +47,8 @@ class Program(object):
         self.instr_count = [0]*len(self.mem)
         self.halted = False
         self.blocked_on_input = False
+        self.last_in = 0
+        self.last_out = 0
 
     def log_debug(self):
         logging.basicConfig(level=logging.DEBUG)
@@ -77,21 +80,27 @@ class Program(object):
 
     def init_io(self, input=None, output=None):
         if input is None:
-            self.input = StdinSource()
+            self._input = StdinSource()
         elif isinstance(input, list):
-            self.input = Queue()
+            self._input = Queue()
             for x in input:
-                self.input.put(x)
+                self._input.put(x)
         else:
-            self.input = input
+            self._input = input
 
         if output is None:
-            self.output = StdoutSink()
+            self._output = StdoutSink()
         else:
-            self.output = output
+            self._output = output
+
+    def intercept(self):
+        return False
 
     def run(self, input=None, output=None, steps=0):
         self.init_io(input, output)
+        return self._run(steps)
+
+    def _run(self, steps=0):
         if steps:
             while steps > 0 and self.step():
                 pass
@@ -99,37 +108,39 @@ class Program(object):
             while self.step():
                 pass
 
-        if isinstance(self.output, ReturnSink):
-            return self.output.values
+        if isinstance(self._output, ReturnSink):
+            return self._output.values
 
     def step(self):
         if self.halted:
             raise MachineHaltedException()
         if self.ip < 0 or self.ip >= len(self.mem):
             raise ProgramOutOfBoundsException()
-        opcode = self.read(self.ip)
-        param_mode = opcode // 100
-        opcode %= 100
-        if opcode not in self.opcodes:
-            raise UnknownOpcodeException()
-        (instr, mnemonic, length, write_par) = self.opcodes[opcode]
-        params = []
-        for i in range(1, length):
-            x = self.read(self.ip + i)
-            if i == write_par:
-                assert param_mode % 10 == 0
-            elif param_mode % 10 == 0:
-                x = self.read(x)
-            param_mode //= 10
-            params.append(x)
+        if not self.intercept():
+            opcode = self.read(self.ip)
+            param_mode = opcode // 100
+            opcode %= 100
+            if opcode not in self.opcodes:
+                raise UnknownOpcodeException()
+            (instr, mnemonic, length, write_par) = self.opcodes[opcode]
+            params = []
+            for i in range(1, length):
+                x = self.read(self.ip + i)
+                if i == write_par:
+                    assert param_mode % 10 == 0
+                elif param_mode % 10 == 0:
+                    x = self.read(x)
+                param_mode //= 10
+                params.append(x)
 
-        if logger.isEnabledFor(logging.INFO):
-            logger.info('%2d %5d: Executing %s' % (self.prog_id, self.ip, self.decode(self.ip)))
-        self.count += 1
-        self.instr_count[self.ip] += 1
-        default_new_ip = self.ip + length
-        new_ip = instr(self, *params)
-        self.ip = default_new_ip if new_ip is None else new_ip  # Must distinguish 0 and None
+            if logger.isEnabledFor(logging.INFO):
+                (mnemonic, code) = self.decode(self.ip)
+                logger.info('%2d %5d: Executing %s' % (self.prog_id, self.ip, mnemonic))
+            self.count += 1
+            self.instr_count[self.ip] += 1
+            default_new_ip = self.ip + length
+            new_ip = instr(self, *params)
+            self.ip = default_new_ip if new_ip is None else new_ip  # Must distinguish 0 and None
         return not self.halted
 
     def decode(self, addr):
@@ -138,34 +149,72 @@ class Program(object):
         param_mode = opcode // 100
         opcode %= 100
         if opcode not in self.opcodes:
-            return 'DB %d' % opcode
-        (instr, mnemonic, length, write_par) = self.opcodes[opcode]
-        mnemonic += ' '
-        for i in range(1, length):
-            if i > 1:
-                mnemonic += ', '
-            x = self.read(addr + i)
-            if param_mode % 10 == 0:
-                mnemonic += '(%d)' % x
-            else:
-                mnemonic += '#%d' % x
-            param_mode //= 10
-        return mnemonic
+            mnemonic = 'DB %d' % opcode
+        else:
+            (instr, mnemonic, length, write_par) = self.opcodes[opcode]
+            mnemonic += ' '
+            params = []
+            for i in range(1, length):
+                if i > 1:
+                    mnemonic += ', '
+                x = self.read(addr + i)
+                if param_mode % 10 == 0:
+                    mnemonic += '(%d)' % x
+                    params.append('m%04d' % x)
+                else:
+                    mnemonic += '#%d' % x
+                    params.append(str(x))
+                param_mode //= 10
 
-    def show(self, addr):
+        # Make it into pythonish code
+        code = '?'
+        if opcode == OPCODE_ADD or opcode == OPCODE_MUL:
+            sign = '+' if opcode == 1 else '*'
+            code = '%s = %s %s %s' % (params[2], params[0], sign, params[1])
+            if params[2] == params[1]:
+                code = '%s %s= %s' % (params[2], sign, params[0])
+            elif params[2] == params[0]:
+                code = '%s %s= %s' % (params[2], sign, params[1])
+        elif opcode == OPCODE_IN:
+            code = '%s = self.input()' % params[0]
+        elif opcode == OPCODE_OUT:
+            code = 'self.output(%s)' % params[0]
+        elif opcode == OPCODE_JUMP_TRUE or opcode == OPCODE_JUMP_FALSE:
+            jump_target = params[1]
+            if jump_target[0] == 'm':
+                # indirect jumps are more likely to modified by code
+                jump_target = '(m%04d)' % (addr + 2)
+            inverse = '' if opcode == OPCODE_JUMP_TRUE else 'not '
+            code = 'if (%s%s): jump %s' % (inverse, params[0], jump_target)
+            if opcode == OPCODE_JUMP_TRUE and params[0][0] != 'm' and int(params[0][0]) != 0:
+                code = 'jump %s' % (jump_target)
+        elif opcode == OPCODE_LESS_THAN:
+            code = '%s = 1 if %s < %s else 0' % (params[2], params[0], params[1])
+        elif opcode == OPCODE_EQUALS:
+            code = '%s = 1 if %s == %s else 0' % (params[2], params[0], params[1])
+        elif opcode == OPCODE_HALT:
+            code = 'self.halted = True\nreturn'
+
+        return (mnemonic, code)
+
+    def show(self, addr, addr_last=False):
         try:
             while addr < len(self.mem):
                 opcode = self.mem[addr] % 100
+                opcode_addr = addr
                 if opcode in self.opcodes:
-                    line = '%5d %s' % (addr, self.decode(addr))
-                    if self.instr_count[addr]:
-                        line = '%-30s [%d]' % (line, self.instr_count[addr])
-                    print(line)
+                    (asm, code) = self.decode(addr)
+                    #if self.instr_count[addr]:
+                    #    code = '%-50s [%d]' % (code, self.instr_count[addr])
                     (_, _, length, _) = self.opcodes[opcode]
                     addr += length
                 else:
-                    print('%5d DB %d' % (addr, opcode))
+                    code = 'DB %d' % opcode
                     addr += 1
+
+                print('%-30s#%5d: %-20s' % (code, opcode_addr, asm))
+                if opcode == OPCODE_HALT:
+                    print()
         except:
             pass
 
@@ -174,6 +223,36 @@ class Program(object):
         for i in range(len(self.instr_count)):
             if self.instr_count[i] > 0:
                 print('%5d %15d' % (i, self.instr_count[i]))
+
+    def input(self):
+        if BLOCK_ON_EOF:
+            try:
+                self.last_in = self._input.get()
+                self.blocked_on_input = False
+                return self.last_in
+            except Empty:
+                # If we have multiple queues as input, this can happen because
+                # we have no good way of blocking.
+                self.blocked_on_input = True
+                return None
+        elif CRASH_ON_EOF:
+            self.last_in = self._input.get_nowait()
+            self.blocked_on_input = False
+            return self.last_in
+        else:
+            try:
+                self.last_in = self._input.get_nowait()
+                logger.info('%2d        Read %d' % (self.prog_id, self.last_in))
+                self.blocked_on_input = False
+                return self.last_in
+            except Empty:
+                logger.info('%2d        Blocked' % (self.prog_id))
+                self.blocked_on_input = True
+                return None
+
+    def output(self, value):
+        self.last_out = value
+        self._output.put(value)
 
     # If an opcode returns a non-value, it's the value of the new IP
     # Otherwise the length of the opcode is added to the IP
@@ -185,34 +264,14 @@ class Program(object):
         self.write(z, x * y)
 
     def opcode_in(self, x):
-        if BLOCK_ON_EOF:
-            try:
-                self.last_in = self.input.get()
-                self.write(x, self.last_in)
-                self.blocked_on_input = False
-            except Empty:
-                # If we have multiple queues as input, this can happen because
-                # we have no good way of blocking.
-                self.blocked_on_input = True
-                return self.ip
-        elif CRASH_ON_EOF:
-            self.last_in = self.input.get_nowait()
-            self.write(x, self.last_in)
-            self.blocked_on_input = False
+        value = self.input()
+        if value is None:
+            return self.ip
         else:
-            try:
-                self.last_in = self.input.get_nowait()
-                logger.info('%2d        Read %d' % (self.prog_id, self.last_in))
-                self.write(x, self.last_in)
-                self.blocked_on_input = False
-            except Empty:
-                logger.info('%2d        Blocked' % (self.prog_id))
-                self.blocked_on_input = True
-                return self.ip
+            self.write(x, value)
 
     def opcode_out(self, x):
-        self.last_out = x
-        self.output.put(x)
+        self.output(x)
 
     def opcode_jump_true(self, x, y):
         if x != 0:
@@ -260,8 +319,10 @@ def parallel_executor(programs):
     '''Executes one instruction at a time across all programs in round robin fashion,
     until they're all halted. Assumes the IO has already been setup.
     Returns the an array, one element per input program. If the output is a ReturnSink
-    for a program, the corresponding element will contain that list, otherwise null.
+    for a program, the corresponding element will contain that list, otherwise None.
     '''
+    global BLOCK_ON_EOF
+    BLOCK_ON_EOF = False
 
     while True:
         all_halted = True
@@ -279,11 +340,23 @@ def parallel_executor(programs):
 
     result = []
     for prog in programs:
-        if isinstance(prog.output, ReturnSink):
-            result.append(prog.output.values)
+        if isinstance(prog._output, ReturnSink):
+            result.append(prog._output.values)
         else:
             result.append(None)
     return result
+
+def threaded_executor(programs):
+    '''Executes all programs in separate threads until they're all halted.
+    Returns the an array, one element per input program. If the output is a ReturnSink
+    for a program, the corresponding element will contain that list, otherwise None.'''
+    global BLOCK_ON_EOF
+    BLOCK_ON_EOF = True
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(programs)) as executor:
+        result = executor.map(lambda p: p._run(), programs)
+    return list(result)
+
 
 class MemoryOutOfBoundsException(Exception):
     '''Thrown when trying to read or write data outside of the given memory boundaries.'''
@@ -356,6 +429,9 @@ class DuplicateSink(object):
         for q in self.queues:
             q.put(x)
 
+
+class PythonProgram:
+    pass
 
 if __name__ == "__main__":
     adder_code = "3,0,1001,0,1,0,4,0,99"
