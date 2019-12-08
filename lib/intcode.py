@@ -36,7 +36,6 @@ class Program(object):
             self.read = self.unsafe_read
             self.write = self.unsafe_write
 
-        self.output = []
         self.prog_id = prog_id
         self.init_io(None, None)
 
@@ -241,11 +240,12 @@ class Program(object):
         OPCODE_MUL: (opcode_mul, 'MUL', 4, 3),
         OPCODE_IN: (opcode_in, 'IN', 2, 1),
         OPCODE_OUT: (opcode_out, 'OUT', 2, -1),
-        OPCODE_HALT: (opcode_exit, 'HALT', 1, -1),
         OPCODE_JUMP_TRUE: (opcode_jump_true, 'JMPT', 3, -1),
         OPCODE_JUMP_FALSE: (opcode_jump_false, 'JMPF', 3, -1),
         OPCODE_LESS_THAN: (opcode_less_than, 'LT', 4, 3),
-        OPCODE_EQUALS: (opcode_equals, 'EQ', 4, 3)
+        OPCODE_EQUALS: (opcode_equals, 'EQ', 4, 3),
+
+        OPCODE_HALT: (opcode_exit, 'HALT', 1, -1),
     }
 
 

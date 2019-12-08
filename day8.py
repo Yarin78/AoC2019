@@ -1,41 +1,22 @@
 import sys
 from queue import Queue
 from collections import defaultdict
-from itertools import permutations
+from itertools import permutations, dropwhile
 from lib import util
 from lib.geo2d import *
 from lib.intcode import *
 from aocd import data, submit
 
+# Clean up version, see day8.org.py for original
+
 lines = data.strip().split('\n')
-line = lines[0]
-layers = []
-cur = 0
-while cur < len(line):
-    layers.append(line[cur:cur+25*6])
-    cur += 25*6
+layers = util.chunk(lines[0], 25*6)
 
-most = 0
-least = 999999
-for layer in layers:
-    zeros = layer.count('0')
-    onestwos = layer.count('1')*layer.count('2')
-    if zeros < least:
-        least = zeros
-        m = onestwos
-    elif zeros == least:
-        m = max(m, onestwos)
+min_zeros = min([x.count('0') for x in layers])
+max_onetwo = max([x.count('1')*x.count('2') for x in layers if x.count('0') == min_zeros])
 
+print(max_onetwo)
 
-s = ''
 for y in range(6):
-    row = ''
-    for x in range(25):
-        i = 0
-        while layers[i][y*25+x] == '2':
-            i += 1
-        if layers[i][y*25+x] == '0':
-            row += '.'
-        else:
-            row += '#'
-    print(row)
+    print(''.join('.#'[ord(next(dropwhile(lambda x:x=='2', [layers[i][y*25+x] for i in range(100)])))-48]
+          for x in range(25)))

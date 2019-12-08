@@ -6,9 +6,19 @@ _integer_pattern = re.compile("-?[0-9]+")
 def get_ints(line):
     return [int(m) for m in _integer_pattern.findall(line)]
 
+def chunk(s, chunk_size):
+    '''Splits a string into chunks given the specified chunk size'''
+    res = []
+    i = 0
+    while i < len(s):
+        res.append(s[i:i+chunk_size])
+        i += chunk_size
+    return res
 
 def bfs(graph, start):
-    '''Performs a BFS search in a graph and returns the distans to all nodes visited.'''
+    '''Performs a BFS search in a graph and returns the distans to all nodes visited.
+    graph: {node: [neighbors]}
+    '''
     dist = {}  # node -> distance
     q = Queue()
     q.put(start)
