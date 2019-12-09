@@ -32,9 +32,7 @@ class Program(object):
     def __init__(self, code, prog_id=0):
         self.factory_settings = list(map(lambda x: int(x), code.strip().split(',')))
         self.reset()
-
         self.prog_id = prog_id
-        self.init_io(None, None)
 
     def reset(self):
         mem = self.factory_settings[:]
@@ -75,6 +73,7 @@ class Program(object):
     def init_io(self, input=None, output=None):
         if input is None:
             self._input = StdinSource()
+            print('Input from stdin')
         elif isinstance(input, list):
             self._input = Queue()
             for x in input:
@@ -84,6 +83,7 @@ class Program(object):
 
         if output is None:
             self._output = StdoutSink()
+            print('Output to stdout')
         else:
             self._output = output
 
@@ -106,6 +106,7 @@ class Program(object):
             return self._output.values
 
     def step(self):
+        assert self.input and self.output
         if self.halted:
             raise MachineHaltedException()
         if not self.intercept():

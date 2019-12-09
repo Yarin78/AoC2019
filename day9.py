@@ -9,7 +9,7 @@ from aocd import data, submit
 
 lines = data.strip().split('\n')
 prog = Program(data)
-prog.run([1])
+prog.run()
 
-prog = Program(data)
-prog.run([2])
+#prog = Program(data)
+#prog.run([2])
