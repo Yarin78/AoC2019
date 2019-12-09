@@ -7,8 +7,6 @@ import sys
 
 logger = logging.getLogger(__name__)
 
-UNSAFE_RW = True  # 4 times faster
-
 # Behaviour when trying to read and there is nothing on the input
 # Default is to pause the machine (and not update the IP)
 CRASH_ON_EOF = False  # Raise exception if trying to read from input when there is no data
@@ -24,6 +22,7 @@ OPCODE_JUMP_TRUE = 5   # if x<>0 then jump y
 OPCODE_JUMP_FALSE = 6  # if x=0 then jump y
 OPCODE_LESS_THAN = 7   # z = x < y ? 1 : 0
 OPCODE_EQUALS = 8      # z = x == y ? 1 : 0
+OPCODE_ADD_BP = 9      # bp += x
 OPCODE_HALT = 99
 
 class Program(object):
@@ -33,15 +32,16 @@ class Program(object):
     def __init__(self, code, prog_id=0):
         self.factory_settings = list(map(lambda x: int(x), code.strip().split(',')))
         self.reset()
-        if UNSAFE_RW:
-            self.read = self.unsafe_read
-            self.write = self.unsafe_write
 
         self.prog_id = prog_id
         self.init_io(None, None)
 
     def reset(self):
-        self.mem = self.factory_settings[:]
+        mem = self.factory_settings[:]
+        self.mem = defaultdict(int)
+        for i in range(len(mem)):
+            self.mem[i] = mem[i]
+
         self.ip = 0
         self.count = 0  # num instructions executed
         self.instr_count = [0]*len(self.mem)
@@ -49,6 +49,10 @@ class Program(object):
         self.blocked_on_input = False
         self.last_in = 0
         self.last_out = 0
+        self.base_ptr = 0
+
+    def last_addr(self):
+        return max(self.mem.keys())
 
     def log_debug(self):
         logging.basicConfig(level=logging.DEBUG)
@@ -59,23 +63,13 @@ class Program(object):
     def log_warn(self):
         logging.basicConfig(level=logging.WARNING)
 
-    def unsafe_read(self, addr):
-        return self.mem[addr]
-
-    def unsafe_write(self, addr, data):
-        self.mem[addr] = data
-
     def read(self, addr):
-        if addr < 0 or addr >= len(self.mem):
-            raise MemoryOutOfBoundsException("Tried reading at mem address %d" % addr)
         data = self.mem[addr]
         logger.debug('Reading {} from [{}]'.format(data, addr))
         return data
 
     def write(self, addr, data):
         logger.debug('Writing {} to [{}]'.format(data, addr))
-        if addr < 0 or addr >= len(self.mem):
-            raise MemoryOutOfBoundsException("Tried writing at mem address %d" % addr)
         self.mem[addr] = data
 
     def init_io(self, input=None, output=None):
@@ -114,8 +108,6 @@ class Program(object):
     def step(self):
         if self.halted:
             raise MachineHaltedException()
-        if self.ip < 0 or self.ip >= len(self.mem):
-            raise ProgramOutOfBoundsException()
         if not self.intercept():
             opcode = self.read(self.ip)
             param_mode = opcode // 100
@@ -127,9 +119,13 @@ class Program(object):
             for i in range(1, length):
                 x = self.read(self.ip + i)
                 if i == write_par:
-                    assert param_mode % 10 == 0
+                    assert param_mode % 10 != 1
+                    if param_mode % 10 == 2:
+                        x += self.base_ptr
                 elif param_mode % 10 == 0:
                     x = self.read(x)
+                elif param_mode % 10 == 2:
+                    x = self.read(x + self.base_ptr)
                 param_mode //= 10
                 params.append(x)
 
@@ -154,13 +150,18 @@ class Program(object):
             (instr, mnemonic, length, write_par) = self.opcodes[opcode]
             mnemonic += ' '
             params = []
+            param_modes = []
             for i in range(1, length):
                 if i > 1:
                     mnemonic += ', '
                 x = self.read(addr + i)
+                param_modes.append(param_mode % 10)
                 if param_mode % 10 == 0:
                     mnemonic += '(%d)' % x
                     params.append('m%04d' % x)
+                elif param_mode % 10 == 2:
+                    mnemonic += '(BP+%d)' % x
+                    params.append('self.mem[self.base_ptr + %04d]' % x)
                 else:
                     mnemonic += '#%d' % x
                     params.append(str(x))
@@ -186,12 +187,14 @@ class Program(object):
                 jump_target = '(m%04d)' % (addr + 2)
             inverse = '' if opcode == OPCODE_JUMP_TRUE else 'not '
             code = 'if (%s%s): jump %s' % (inverse, params[0], jump_target)
-            if opcode == OPCODE_JUMP_TRUE and params[0][0] != 'm' and int(params[0][0]) != 0:
+            if opcode == OPCODE_JUMP_TRUE and param_modes[0] == 1 and int(params[0][0]) != 0:
                 code = 'jump %s' % (jump_target)
         elif opcode == OPCODE_LESS_THAN:
             code = '%s = 1 if %s < %s else 0' % (params[2], params[0], params[1])
         elif opcode == OPCODE_EQUALS:
             code = '%s = 1 if %s == %s else 0' % (params[2], params[0], params[1])
+        elif opcode == OPCODE_ADD_BP:
+            code = 'self.base_ptr += %s' % params[0]
         elif opcode == OPCODE_HALT:
             code = 'self.halted = True\nreturn'
 
@@ -199,7 +202,7 @@ class Program(object):
 
     def show(self, addr, addr_last=False):
         try:
-            while addr < len(self.mem):
+            while addr <= self.last_addr():
                 opcode = self.mem[addr] % 100
                 opcode_addr = addr
                 if opcode in self.opcodes:
@@ -288,6 +291,9 @@ class Program(object):
     def opcode_equals(self, x, y, z):
         self.write(z, 1 if x == y else 0)
 
+    def opcode_add_bp(self, x):
+        self.base_ptr += x
+
     def opcode_exit(self):
         self.halted = True
         return self.ip
@@ -304,6 +310,7 @@ class Program(object):
         OPCODE_JUMP_FALSE: (opcode_jump_false, 'JMPF', 3, -1),
         OPCODE_LESS_THAN: (opcode_less_than, 'LT', 4, 3),
         OPCODE_EQUALS: (opcode_equals, 'EQ', 4, 3),
+        OPCODE_ADD_BP: (opcode_add_bp, 'ADD_BP', 2, -1),
 
         OPCODE_HALT: (opcode_exit, 'HALT', 1, -1),
     }
@@ -358,10 +365,6 @@ def threaded_executor(programs):
         result = executor.map(lambda p: p._run(), programs)
     return list(result)
 
-
-class MemoryOutOfBoundsException(Exception):
-    '''Thrown when trying to read or write data outside of the given memory boundaries.'''
-    pass
 
 class MachineHaltedException(Exception):
     '''Thrown when trying to execute code while the machine is halted.'''
