@@ -134,6 +134,9 @@ class Program(object):
                 (mnemonic, code) = self.decode(self.ip)
                 logger.info('%2d %5d: Executing %s' % (self.prog_id, self.ip, mnemonic))
             self.count += 1
+            if self.count % 10000 == 0:
+                sys.stdout.write('.')
+                sys.stdout.flush()
             self.instr_count[self.ip] += 1
             default_new_ip = self.ip + length
             new_ip = instr(self, *params)
