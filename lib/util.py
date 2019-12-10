@@ -1,6 +1,5 @@
 import re
 import itertools
-from queue import Queue
 
 _integer_pattern = re.compile("-?[0-9]+")
 
@@ -15,24 +14,6 @@ def chunk(s, chunk_size):
         res.append(s[i:min(i+chunk_size, len(s))])
         i += chunk_size
     return res
-
-def bfs(graph, start):
-    '''Performs a BFS search in a graph and returns the distans to all nodes visited.
-    graph: {node: [neighbors]}
-    '''
-    dist = {}  # node -> distance
-    q = Queue()
-    q.put(start)
-    dist[start] = 0
-    while not q.empty():
-        current = q.get()
-        steps = dist[current]
-        for neighbor in graph.get(current, []):
-            if neighbor not in dist:
-                dist[neighbor] = steps + 1
-                q.put(neighbor)
-    return dist
-
 
 def generate_primes(n):
     '''Generates all primes up to and include n.
@@ -75,7 +56,6 @@ def factorize(n, primes=None):
     return factors
 
 if __name__ == "__main__":
-    primes = None #generate_primes(1000001000**0.5)
+    primes = generate_primes(1000001000**0.5)
     for i in range(1000000000,1000001000):
         print(i, factorize(i, primes))
-
