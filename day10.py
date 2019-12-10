@@ -1,77 +1,40 @@
-import sys
 import math
-from queue import Queue
-from collections import defaultdict
-from itertools import permutations
-from lib import util
-from lib.geo2d import *
-from lib.intcode import *
 from aocd import data, submit
 
-def gcd(a, b):
-    if b == 0:
-        return a
-    return gcd(b, a%b)
+
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+def normsqr(x, y):
+    return x*x+y*y
 
 lines = data.strip().split('\n')
-map = [list(line) for line in lines]
-xsize = len(lines[0])
-ysize = len(lines)
 
-total_count = 0
-best = 0
-for y in range(ysize):
-    for x in range(xsize):
-        if map[y][x] != '#':
-            continue
-        total_count += 1
-        angles = set()
-        for ty in range(ysize):
-            for tx in range(xsize):
-                if lines[ty][tx] != '#' or (y == ty and x == tx):
-                    continue
-                dx = tx-x
-                dy = ty-y
-                d = gcd(abs(dx), abs(dy))
-                dx //= d
-                dy //= d
-                angles.add((dx, dy))
-        if len(angles) > best:
-            sx = x
-            sy = y
-            best = len(angles)
+asteroids = flatten([[(x,y) for x in range(len(lines[y])) if lines[y][x] == '#'] for y in range(len(lines))])
 
-print(best, sx, sy)
+def unique_angles(asteroids, x,y):
+    angles = {}  # angle -> closest
+    for (tx,ty) in sorted(asteroids, key=lambda a: normsqr(a[0]-x,a[1]-y)):
+        if tx!=x or ty!=y:
+            angle = math.atan2(ty-y, tx-x)
+            if ty-y < 0 and tx-x < 0:
+                angle += 2*math.pi
+            if angle not in angles:
+                angles[angle] = (tx,ty)
 
-wave = 0
-asteroids = []
-while len(asteroids) < total_count - 1:
-    wave += 1
+    return sorted(angles.items())
 
-    angles = set()
-    for ty in range(ysize):
-        for tx in range(xsize):
-            if map[ty][tx] != '#' or (tx == sx and ty == sy):
-                continue
-            dx = tx-sx
-            dy = ty-sy
-            d = gcd(abs(dx), abs(dy))
-            dx //= d
-            dy //= d
-            angles.add((dx, dy))
+best = max([len(unique_angles(asteroids, x,y)) for (x,y) in asteroids])
 
-    for (dx,dy) in angles:
-        angle = math.atan2(dy,dx)
-        if dy < 0 and dx < 0:
-            angle += 2*math.pi
-        cx = sx+dx
-        cy = sy+dy
-        while map[cy][cx] != '#':
-            cx += dx
-            cy += dy
-        if map[cy][cx] == '#':
-            asteroids.append((wave, angle, cx, cy))
-            map[cy][cx] = '.'
+(sx, sy) = [(x,y) for (x,y) in asteroids if len(unique_angles(asteroids, x,y)) == best][0]
 
-asteroids.sort()
-print(asteroids[199][2:])
+print (best, sx, sy)
+
+cnt = 0
+while True:
+    for a, (x,y) in unique_angles(asteroids, sx, sy):
+        cnt += 1
+        asteroids.remove((x,y))
+        if cnt == 200:
+            print(a, x,y)
+            exit(0)
