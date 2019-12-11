@@ -1,5 +1,6 @@
 import re
 import itertools
+from lib.geo2d import Point
 
 _integer_pattern = re.compile("-?[0-9]+")
 
@@ -55,7 +56,45 @@ def factorize(n, primes=None):
         factors.append(n)
     return factors
 
+def gridify_sparse_map(map, output_func=None):
+    '''Converts a map of dict(Point) or dict((x,y)) into an array of strings. Determines min and max coordinates used.'''
+    if isinstance(next(iter(map.keys())), Point):
+        get_x = lambda p: p.x
+        get_y = lambda p: p.y
+        get_p = lambda x, y: Point(x,y)
+    else:
+        get_x = lambda p: p[0]
+        get_y = lambda p: p[1]
+        get_p = lambda x, y: (x,y)
+
+    minx = min(get_x(p) for p in map.keys())
+    miny = min(get_y(p) for p in map.keys())
+    maxx = max(get_x(p) for p in map.keys())
+    maxy = max(get_y(p) for p in map.keys())
+
+    res = []
+    for y in range(miny, maxy+1):
+        s = ''
+        for x in range(minx, maxx+1):
+            p = get_p(x,y)
+            c = map[p] if p in map else None
+            if output_func:
+                s += output_func(c)
+            else:
+                s += str(c) if c else '.'
+        res.append(s)
+    return res
+
+def print_array(array):
+    for a in array:
+        print(a)
+
 if __name__ == "__main__":
-    primes = generate_primes(1000001000**0.5)
-    for i in range(1000000000,1000001000):
-        print(i, factorize(i, primes))
+    #primes = generate_primes(1000001000**0.5)
+    #for i in range(1000000000,1000001000):
+    #    print(i, factorize(i, primes))
+
+
+    print_array(gridify_sparse_map({Point(0,0): '#'}))
+    print()
+    print_array(gridify_sparse_map({(0,0): '#', (1,1): '#', (-1,1): '_'}))

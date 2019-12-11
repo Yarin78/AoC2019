@@ -165,7 +165,7 @@ class Program(object):
                     params.append('m%04d' % x)
                 elif param_mode % 10 == 2:
                     mnemonic += '(BP+%d)' % x
-                    params.append('self.mem[self.base_ptr + %04d]' % x)
+                    params.append('self.mem[self.base_ptr + %d]' % x)
                 else:
                     mnemonic += '#%d' % x
                     params.append(str(x))
@@ -193,6 +193,8 @@ class Program(object):
             code = 'if (%s%s): jump %s' % (inverse, params[0], jump_target)
             if opcode == OPCODE_JUMP_TRUE and param_modes[0] == 1 and int(params[0][0]) != 0:
                 code = 'jump %s' % (jump_target)
+            if opcode == OPCODE_JUMP_FALSE and param_modes[0] == 1 and int(params[0][0]) == 0:
+                code = 'jump %s' % (jump_target)
         elif opcode == OPCODE_LESS_THAN:
             code = '%s = 1 if %s < %s else 0' % (params[2], params[0], params[1])
         elif opcode == OPCODE_EQUALS:
@@ -215,6 +217,7 @@ class Program(object):
                     addr += length
                 else:
                     code = 'DB %d' % opcode
+                    asm = ''
                     addr += 1
 
                 line = '%-30s#%5d: %-20s' % (code, opcode_addr, asm)
@@ -436,6 +439,10 @@ class DuplicateSink(object):
     def put(self, x):
         for q in self.queues:
             q.put(x)
+
+class BaseInput(object):
+    def get_nowait(self):
+        return self.get()
 
 
 class PythonProgram:

@@ -9,21 +9,16 @@ from lib.intcode import *
 from aocd import data, submit
 
 lines = data.strip().split('\n')
-prog = Program(data)
 
 DIRECTIONS = [NORTH, EAST, SOUTH, WEST]
 
-class Reader:
+class Reader(BaseInput):
     def get(self):
         global dir, pos, map
         return map[pos]
 
-    def get_nowait(self):
-        return self.get()
-
 class Writer:
-    def __init__(self):
-        self.p = 0
+    p = 0
 
     def put(self, v):
         global dir, pos, map
@@ -37,6 +32,8 @@ class Writer:
                 dir = (dir+1)%4
             pos += DIRECTIONS[dir]
             self.p = 0
+
+prog = Program(data)
 
 # Star 1
 pos=Point(0,0)
@@ -58,10 +55,4 @@ map[Point(0,0)] = 1
 prog.reset()
 prog.run(Reader(), Writer())
 
-minx = min(p.x for p in map.keys())
-miny = min(p.y for p in map.keys())
-maxx = max(p.x for p in map.keys())
-maxy = max(p.y for p in map.keys())
-
-for y in range(miny, maxy+1):
-    print(''.join(['#' if map[Point(x,y)] else '.' for x in range(minx, maxx+1)]))
+util.print_array(util.gridify_sparse_map(map))
