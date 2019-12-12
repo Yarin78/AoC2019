@@ -1,3 +1,5 @@
+import itertools
+
 moon_pos = [16,4,17,13],[-8,10,-5,-3],[13,10,6,0]
 moon_vel = [[0,0,0,0],[0,0,0,0],[0,0,0,0]]
 
@@ -25,12 +27,10 @@ for coord in range(3):
             break
         seen[state] = t
         t += 1
-        for p1 in range(4):
-            for p2 in range(4):
-                if p1 < p2:
-                    delta = moon_pos[coord][p1] - moon_pos[coord][p2]
-                    moon_vel[coord][p1] -= sign(delta)
-                    moon_vel[coord][p2] += sign(delta)
+        for (p1, p2) in itertools.combinations(range(4), 2):
+            delta = moon_pos[coord][p1] - moon_pos[coord][p2]
+            moon_vel[coord][p1] -= sign(delta)
+            moon_vel[coord][p2] += sign(delta)
 
         for p in range(4):
             moon_pos[coord][p] += moon_vel[coord][p]
