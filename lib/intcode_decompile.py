@@ -20,7 +20,8 @@ class Function:
 
 
 def extract_funcions(prog, *ip):
-    '''Gets a list of tuples (start_addr, end_addr, frame_size) of all functions.'''
+    '''Detects all functions reachable from the given addresses.
+    Returns a List[Function]'''
 
     funcs = {}  # start_addr -> Function
     addr_func = {}  # addr -> function id
