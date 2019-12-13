@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 CRASH_ON_EOF = False  # Raise exception if trying to read from input when there is no data
 BLOCK_ON_EOF = False   # Block calling thread if trying to read from input when there is no data
 
+SHOW_PROGRESS = True
 
 # The parameters are called x, y, z
 OPCODE_ADD = 1         # z = x + y
@@ -87,6 +88,11 @@ class Program(object):
         else:
             self._output = output
 
+    def feed_input(self, v):
+        assert isinstance(self._input, Queue)
+        self._input.put(v)
+        self.blocked_on_input = False
+
     def intercept(self):
         return False
 
@@ -104,6 +110,16 @@ class Program(object):
 
         if isinstance(self._output, ReturnSink):
             return self._output.values
+
+    def run_until_next_io(self, input=None, output=None):
+        if self.count == 0:
+            self.init_io(input if input else Queue(), output if output else Queue())
+        while not self.halted and not self.blocked_on_input and self._output.empty():
+            self.step()
+        if self.halted or self.blocked_on_input:
+            return None
+        return self._output.get()
+
 
     def step(self):
         assert self.input and self.output
@@ -134,9 +150,9 @@ class Program(object):
                 (mnemonic, code) = self.decode(self.ip)
                 logger.info('%2d %5d: Executing %s' % (self.prog_id, self.ip, mnemonic))
             self.count += 1
-            if self.count % 10000 == 0:
-                sys.stdout.write('.')
-                sys.stdout.flush()
+            if SHOW_PROGRESS and self.count % 10000 == 0:
+                sys.stderr.write('.')
+                sys.stderr.flush()
             self.instr_count[self.ip] += 1
             default_new_ip = self.ip + length
             new_ip = instr(self, *params)

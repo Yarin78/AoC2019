@@ -7,6 +7,13 @@ _integer_pattern = re.compile("-?[0-9]+")
 def get_ints(line):
     return [int(m) for m in _integer_pattern.findall(line)]
 
+def sign(v):
+    if v > 0:
+        return 1
+    if v < 0:
+        return -1
+    return 0
+
 def chunk(s, chunk_size):
     '''Splits a string into chunks given the specified chunk size'''
     res = []

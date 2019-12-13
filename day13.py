@@ -1,74 +1,48 @@
-import sys
 from queue import Queue
-from collections import defaultdict
-from itertools import permutations
-from lib import util
-from lib.graph import *
+from lib.util import *
 from lib.geo2d import *
 from lib.intcode import *
-from aocd import data, submit
+from aocd import data
+
 
 map = {}
-score = 0
-ballx = 0
-paddlex = 0
-
-class Reader(BaseInput):
-    def get(self):
-        if paddlex < ballx:
-            return 1
-        if paddlex > ballx:
-            return -1
-        return 0
-
-
-class Writer:
-    p = 0
-    x = 0
-    y = 0
-
-    def put(self, v):
-        global map,score, ballx, paddlex
-
-
-        if self.p == 0:
-            self.x = v
-        elif self.p == 1:
-            self.y = v
-        else:
-            if self.x==-1 and self.y==0:
-                score = v
-                #print('score = %d' % score)
-            else:
-                if v == 4:
-                    #print('ball at %x,%x' % (self.x,self.y))
-                    ballx = self.x
-                    map[Point(self.x,self.y)] = 0
-                elif v == 3:
-                    #print('paddle at %x,%x' % (self.x,self.y))
-                    paddlex = self.x
-                    map[Point(self.x,self.y)] = 0
-                else:
-                    map[Point(self.x,self.y)] = v
-
-        self.p = (self.p+1)%3
 
 lines = data.strip().split('\n')
 prog = Program(data)
 
-prog.run(Reader(), Writer())
+while True:
+    x = prog.run_until_next_io()
+    if x is None:
+        break
+    y = prog.run_until_next_io()
+    tile = prog.run_until_next_io()
+    map[Point(x,y)] = tile
 
-cnt = 0
-for p,v in map.items():
-    if v == 2:
-        cnt += 1
 
-util.print_array(util.gridify_sparse_map(map))
+print_array(gridify_sparse_map(map))
 
-print("%d block tiles" % cnt)
+print("%d block tiles" % list(map.values()).count(2))
 
 prog.reset()
 prog.mem[0] = 2
-prog.run(Reader(), Writer())
+
+score = 0
+ballx = 0
+paddlex = 0
+while not prog.halted:
+    x = prog.run_until_next_io()
+    if prog.halted:
+        break
+    if x is None:
+        prog.feed_input(sign(ballx - paddlex))
+        continue
+    y = prog.run_until_next_io()
+    tile = prog.run_until_next_io()
+    if x < 0 and y == 0:
+        score = tile
+    elif tile == 4:
+        ballx = x
+    elif tile == 3:
+        paddlex = x
 
 print(score)
