@@ -88,9 +88,8 @@ class DecompiledProgram(Program):
         #  443: MUL #1, #450, (BP+0)
         #  447: JMPF #0, #451
         (q0) = self.func451(q0)
-        #  450: HALT
-        self.halted = True
-        return
+        #  450: HALT 
+        raise MachineHaltedException()
 
     @with_goto
     def func451(self, p0=0):
@@ -204,7 +203,6 @@ class DecompiledProgram(Program):
         #  488: ADD (477), #478, (493)
         self.mem[493] = self.mem[477] + 478
         #  492: OUT (0)
-        #self.output(self.mem[0])
         self.output(self.mem[self.mem[493]])
         #  494: ADD (477), #1, (477)
         self.mem[477] += 1
