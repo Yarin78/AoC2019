@@ -9,31 +9,30 @@ from aocd import data, submit
 
 lines = data.strip().split('\n')
 
-req = {}
-g = {}
+req = {}  # Complete list of dependencies and quantities required to produce each chemical
+g = {}    # Dependency graph
 for line in lines:
-    parts = intify(tokenize(line))
-    parts = pair_up(parts)
-    deps, (target_quant, target) = parts[0:-1], parts[-1]
+    reaction = pair_up(intify(tokenize(line)))
+    deps, (target_quant, target_id) = reaction[0:-1], reaction[-1]
 
-    req[target] = (target_quant, deps)
-    g[target] = [dep[1] for dep in deps]
+    req[target_id] = (target_quant, deps)
+    g[target_id] = [dep[1] for dep in deps]
 
 order = topological_sort(g)
-order.reverse()
+order.reverse()  # Process the reactions in backward order
 
-def ore_required(x):
+def ore_required(fuel_demand):
     global order, req
-    hm = defaultdict(int)
-    hm['FUEL'] = x
-    for output in order:
-        if output == 'ORE':
-            return hm[output]
-        (quant, ingred) = req[output]
-        a = int(math.ceil(hm[output] / quant))
+    demand = defaultdict(int)
+    demand['FUEL'] = fuel_demand
+    for id in order:
+        if id == 'ORE':
+            return demand[id]
+        (quant, deps) = req[id]
+        required_amount = int(math.ceil(demand[id] / quant))
         #print('need %d %s, must produce %d times receipt %s' % (hm[output], output, a, req[output]))
-        for (c, b) in ingred:
-            hm[b] += c*a
+        for (dep_quant, dep_id) in deps:
+            demand[dep_id] += dep_quant*required_amount
 
 print(ore_required(1))
 
