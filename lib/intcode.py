@@ -457,6 +457,9 @@ class DuplicateSink(object):
             q.put(x)
 
 class BaseInput(object):
+    def get(self):
+        raise Exception()  # Should be overridden
+
     def get_nowait(self):
         return self.get()
 
