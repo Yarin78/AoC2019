@@ -12,18 +12,13 @@ lines = data.strip().split('\n')
 req = {}
 g = {}
 for line in lines:
-    line = line.replace(',', '').replace(' => ', ' ')
-    parts = line.split(' ')
-    p = []
-    q = []
+    parts = intify(tokenize(line))
+    parts = pair_up(parts)
+    deps, (target_quant, target) = parts[0:-1], parts[-1]
 
-    for i in range((len(parts)-2) // 2):
-        p.append((parts[i*2+1], int(parts[i*2])))
-        q.append(parts[i*2+1])
-    req[parts[-1]] = (int(parts[-2]), p)
-    g[parts[-1]] = q
+    req[target] = (target_quant, deps)
+    g[target] = [dep[1] for dep in deps]
 
-#print(g)
 order = topological_sort(g)
 order.reverse()
 
@@ -37,21 +32,19 @@ def ore_required(x):
         (quant, ingred) = req[output]
         a = int(math.ceil(hm[output] / quant))
         #print('need %d %s, must produce %d times receipt %s' % (hm[output], output, a, req[output]))
-        for (b, c) in ingred:
+        for (c, b) in ingred:
             hm[b] += c*a
 
 print(ore_required(1))
 
-target= 1000000000000
+target = 1000000000000
 lo = 0
-hi = 10000000000
+hi = target
 while lo < hi:
     x = (lo+hi)//2
-    if ore_required(x) > 1000000000000:
+    if ore_required(x) > target:
         hi = x
-        #print('does not work with %d' % x)
     else:
         lo = x+1
-        #print('works with %d' % x)
 
 print(lo-1)

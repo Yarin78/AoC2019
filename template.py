@@ -2,7 +2,7 @@ import sys
 from queue import Queue
 from collections import defaultdict
 from itertools import permutations
-from lib import util
+from lib.util import *
 from lib.graph import *
 from lib.geo2d import *
 from lib.intcode import *
