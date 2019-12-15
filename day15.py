@@ -17,44 +17,42 @@ goal = None
 DIRS = [NORTH, SOUTH, WEST, EAST]
 OPP_DIR = [1,0,3,2]
 
-input_queue = Queue()
-
 def search(pos):
     global map,goal,prog
     map[pos] = '.'
     for dir in range(4):
         new_pos = pos+DIRS[dir]
         if new_pos not in map:
-            input_queue.put(dir+1)
-            status = prog.run_until_next_io(input_queue)
+            status = prog.run_until_next_io(feed_input=[dir+1])
 
             if status:
                 if status == 2:
                     goal = new_pos
                 search(new_pos)
-                input_queue.put(OPP_DIR[dir]+1)
-                status = prog.run_until_next_io()
-                assert status != 0
+                status = prog.run_until_next_io(feed_input=[OPP_DIR[dir]+1])
+                assert status
             else:
                 map[new_pos] = '#'
 
 
-search(Point(0,0))
-map[Point(0,0)] = 'S'
+start = Point(0,0)
+search(start)
+map[start] = 'S'
 map[goal] = 'G'
 
 print_array(gridify_sparse_map(map))
 
-g = {}
-for p, c in map.items():
-    if c in '.GS':
-        neighbors = []
-        for d in DIRS:
-            if map[p + d] in '.GS':
-                neighbors.append(p+d)
-        g[p] = neighbors
+def node_conv(p, c):
+    global goal, start
+    if c == 'G':
+        goal = p
+    if c == 'S':
+        start = p
+    return c in '.GS'
 
-dist = bfs(g, Point(0,0))
+g = grid_graph(gridify_sparse_map(map), is_node=node_conv)
+
+dist = bfs(g, start)
 
 print(dist[goal])
 

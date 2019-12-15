@@ -111,11 +111,16 @@ class Program(object):
         if isinstance(self._output, ReturnSink):
             return self._output.values
 
-    def run_until_next_io(self, input=None, output=None):
+    def run_until_next_io(self, input=None, output=None, feed_input=None):
         if self.count == 0:
             self.init_io(input if input else Queue(), output if output else Queue())
+        if feed_input:
+            for x in feed_input:
+                self.feed_input(x)
         while not self.halted and not self.blocked_on_input and self._output.empty():
             self.step()
+        if self.halted:
+            print('HALT')
         if self.halted or self.blocked_on_input:
             return None
         return self._output.get()

@@ -190,7 +190,7 @@ def grid_graph(grid, is_node, get_edge=None, uni_distance=True, num_directions=4
                     if np.x >= 0 and np.x < xsize and np.y >= 0 and np.y < ysize:
                         nc = grid[np.y][np.x]
                         if is_node(np, nc):
-                            e = get_edge(p, c, np, nc)
+                            e = get_edge(p, c, np, nc) if get_edge else True
                             if e is not None:
                                 if uni_distance:
                                     neighbors.append(np)
