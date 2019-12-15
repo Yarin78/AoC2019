@@ -1,15 +1,17 @@
 from collections import defaultdict
 from queue import Queue, Empty
 import concurrent.futures
+import threading
 import functools
 import logging
 import sys
+import copy
 
 logger = logging.getLogger(__name__)
 
 # Behaviour when trying to read and there is nothing on the input
 # Default is to pause the machine (and not update the IP)
-CRASH_ON_EOF = False  # Raise exception if trying to read from input when there is no data
+CRASH_ON_EOF = False   # Raise exception if trying to read from input when there is no data
 BLOCK_ON_EOF = False   # Block calling thread if trying to read from input when there is no data
 
 SHOW_PROGRESS = True
@@ -34,6 +36,8 @@ class Program(object):
         self.factory_settings = list(map(lambda x: int(x), code.strip().split(',')))
         self.reset()
         self.prog_id = prog_id
+        self._input = None
+        self._output = None
 
     def reset(self):
         mem = self.factory_settings[:]
@@ -88,6 +92,26 @@ class Program(object):
         else:
             self._output = output
 
+    def clone(self):
+        # The queues can't be deepcopyied, so we need to reset those fields
+        # and manually copy the elements to a new instance
+        assert isinstance(self._input, Queue)
+        assert isinstance(self._output, Queue)
+        tmp_input = self._input
+        tmp_output = self._output
+        self._input = None
+        self._output = None
+        cp = copy.deepcopy(self)
+        self._input = tmp_input
+        self._output = tmp_output
+        cp._input = Queue()
+        cp._output = Queue()
+        for e in tmp_input.queue:
+            cp._input.put(e)
+        for e in tmp_output.queue:
+            cp._output.put(e)
+        return cp
+
     def feed_input(self, v):
         assert isinstance(self._input, Queue)
         self._input.put(v)
@@ -99,6 +123,23 @@ class Program(object):
     def run(self, input=None, output=None, steps=0):
         self.init_io(input, output)
         return self._run(steps)
+
+    def run_until_halted(self, start=0):
+        try:
+            while True:
+                self.step()
+        except MachineHaltedException:
+            pass
+
+    def start_async(self, start=0, daemon=False):
+        global BLOCK_ON_EOF
+        BLOCK_ON_EOF = True
+        if self._input is None:
+            self.init_io(Queue(), Queue())
+
+        t = threading.Thread(target=self.run_until_halted, daemon=daemon, args=(start,))
+        t.start()
+        return t
 
     def _run(self, steps=0):
         if steps:
