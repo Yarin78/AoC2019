@@ -1,5 +1,8 @@
+import argh
+import json
 import logging
 import itertools
+import heapq
 from queue import Queue
 from lib.intcode import *
 
@@ -7,16 +10,9 @@ MODE_POSITION = 0
 MODE_IMMEDIATE = 1
 MODE_RELATIVE = 2
 
+FUNC_TYPE_SKIP = 'SKIP'  # Ignored function
+
 MAX_FRAME_SIZE = 15
-
-# addr -> [bool-array] with possible outcomes of a jump condition check
-OVERRIDE_JUMP_CONDITIONS = {}
-# addr -> addr   overriding target address of jump if it can't be determined correctly
-#OVERRIDE_TARGET_ADDRESS = {}
-OVERRIDE_TARGET_ADDRESS = {636: 482}  # day 11
-
-LOCAL_VARIABLES = {}   # set of mem addresses that is only access within a function
-GLOBAL_VARIABLES = {}  # set of mem addresses that may be accessed from anywhere
 
 
 class Node:
@@ -46,7 +42,7 @@ class Node:
             elif mode == MODE_RELATIVE:
                 param_str.append(self._local_var_name(param))
             else:
-                param_str.append(str(param))
+                param_str.append(self.decompiler.immediate_value(ip, param))
         return param_str
 
     def generate_code(self, next_node):
@@ -56,6 +52,10 @@ class Node:
         ip = self.addr
         did_halt = False
         for j in range(len(self.instr)):
+            if ip in self.decompiler.modifying_code_addr:
+                # If this happens, we're sort of screwed
+                logging.warning('Parsing opcode from address %s that can get modified' % ip)
+                codes.append('# This instruction may get modified')
             (opcode, params, modes) = self.instr[j]
             param_str = self.get_param_str(ip, zip(params, modes))
             is_return_addr = (0, MODE_RELATIVE) in zip(params, modes)
@@ -93,8 +93,19 @@ class Node:
                     code = ''
                     if ip in self.func.func_calls:
                         (target_addr, _) = self.func.func_calls[ip]
-                        if target_addr is None:
-                            code = '<unknown call>'
+                        # Even if there is an address in func_calls,
+                        # it might be a modified instruction, hence the isdigit() check
+                        if target_addr is None or not param_str[1].isdigit():
+                            # Dynamic dispatcher; the number of parameters is a problem,
+                            # we'll assume it's the same as the numbers set in the instructions before
+                            # Might be wrong on the numbers returned though
+                            num_set = self.num_calling_params_set()
+                            call_vars = ', '.join(['q%d' % x for x in range(num_set)])
+                            mem_addr = param_str[1]
+                            if call_vars:
+                                code = '(%s) = self.funcs[%s](self, %s)' % (call_vars, mem_addr, call_vars)
+                            else:
+                                code = 'self.funcs[%s](self)' % mem_addr
                         else:
                             # If we call a function with frame_size 5 (4 parameters/local vars),
                             # all of them may not have been set.
@@ -102,6 +113,8 @@ class Node:
                                 lambda x: self._local_var_name(x) in self.variables_assigned,
                                 range(1, 20))))
                             code = self.decompiler.functions[target_addr].call_instr(num_params_set)
+                    else:
+                        code = '? %d' % len(self.children)
                 else:
                     if ip in self.func.func_calls:
                         logging.warning('Conditional function calls not supported (%d)' % ip)
@@ -113,7 +126,7 @@ class Node:
                         '    goto .lbl_%d' % self.children[1].addr
                     ]
             else:
-                assert False
+                code = '?'
             if isinstance(code, list):
                 codes.extend(code)
             else:
@@ -124,19 +137,37 @@ class Node:
         if len(self.children) == 0:
             if not did_halt:
                 codes.append(self.func.return_statement())
-        elif self.children[0].addr != next_node.addr:
+        elif next_node is None or self.children[0].addr != next_node.addr:
             codes.append('goto .lbl_%d' % self.children[0].addr)
 
         return codes
 
-    def get_target_variable(self):
+    def num_calling_params_set(self):
+        # Gets the number of calling parameters set by looking at previous instructions
+        cur = self
+        vset = set()
+        while len(cur.parents) == 1:
+            cur = cur.parents[0]
+            v = cur.get_target_variable(allow_ret=True)
+            if v is None:
+                break
+            if v == 'RET_ADDR':
+                continue
+            if v[0] == 'q':
+                vset.add(int(v[1:]))
+        num_set = 0  # if vset = set(0,1,3), then we have 2 set variables - must be consecutive
+        while num_set in vset:
+            num_set += 1
+        return num_set
+
+    def get_target_variable(self, allow_ret=False):
         # Gets the variable that gets assigned a value in this node, if any
         ip = self.addr
         for j in range(len(self.instr)):  # Should only be one instruction in here that can write to sth
             (opcode, params, modes) = self.instr[j]
             param_str = self.get_param_str(ip, zip(params, modes))
             if opcode in [OPCODE_ADD, OPCODE_MUL, OPCODE_IN, OPCODE_LESS_THAN, OPCODE_EQUALS]:
-                if param_str[-1] != 'RET_ADDR':
+                if param_str[-1] != 'RET_ADDR' or allow_ret:
                     return param_str[-1]
             ip += 1 + len(params)
         return None
@@ -192,32 +223,35 @@ class Node:
 '''Represents a proper function in intcode. The start address is the unique identifier.'''
 class Function:
 
-    def __init__(self, decompiler, id, length, frame_size, func_calls):
+    def __init__(self, decompiler, id, length, frame_size, func_name, func_calls):
         self.decompiler = decompiler
         self.id = id
         self.length = length
+        # Frame size 0 means it's in "global" scope, e.g. don't use stack at all
+        # Frame size > MAX_FRAME_SIZE mean it's the "init" function setting up the stack
         self.frame_size = frame_size
         self.func_calls = func_calls  # addr -> (target addr, return addr)
+        self.func_name = func_name
         self.nodes = None
 
     def name(self):
-        return 'func%d' % self.id
+        return self.func_name
 
     def call_instr(self, num_params_set):
-        if self.frame_size > MAX_FRAME_SIZE:
+        if self.frame_size > MAX_FRAME_SIZE or self.frame_size == 0:
             return 'self.%s()' % self.name()
         call_params = ', '.join(['q%d' % x for x in range(min(num_params_set, self.frame_size - 1))])
         ret_params = ', '.join(['q%d' % x for x in range(self.frame_size - 1)])
         return '(%s) = self.%s(%s)' % (ret_params, self.name(), call_params)
 
     def definition(self):
-        if self.frame_size > MAX_FRAME_SIZE:
+        if self.frame_size > MAX_FRAME_SIZE or self.frame_size == 0:
             return 'def %s(self):' % (self.name())
         params = ', '.join(['p%d=0' % x for x in range(self.frame_size - 1)])
         return 'def %s(self, %s):' % (self.name(), params)
 
     def return_statement(self):
-        if self.frame_size > MAX_FRAME_SIZE:
+        if self.frame_size > MAX_FRAME_SIZE or self.frame_size == 0:
             return 'return'
         params = ', '.join(['p%d' % x for x in range(self.frame_size - 1)])
         return 'return (%s)' % params
@@ -232,7 +266,7 @@ class Function:
                     labels.add(child.addr)
         return labels
 
-    def generate_code(self, include_mnemonic=True):
+    def generate_code(self):
         '''Generates code for this functino.'''
         lines = []
 
@@ -249,7 +283,7 @@ class Function:
         for i in range(len(node_order)):
             node = node_order[i]
             next_node = node_order[i+1] if i+1 < len(node_order) else None
-            if include_mnemonic:
+            if self.decompiler.config['opcodes_in_functions']:
                 (mnemonic, _) = self.decompiler.prog.decode(node.addr)
                 lines.append('        # %4d: %s' % (node.addr, mnemonic))
                 #lines.append('        # %s' % str(node.variables_assigned))
@@ -298,7 +332,9 @@ class Function:
             if ip in self.func_calls:
                 jc = self.decompiler.possible_jump_conditions(ip, 'call')
                 if True in jc:
-                    next_addr[ip].append(self.func_calls[ip][1])  # The return address
+                    ret_addr = self.func_calls[ip][1]  # The return address
+                    if ret_addr >= 0:
+                        next_addr[ip].append(ret_addr)
                 if False in jc:
                     # Conditional function calls; not sure we can have this
                     logging.warning('Conditional function call at %d' % ip)
@@ -339,18 +375,37 @@ class Function:
 class Decompiler:
 
     prog = None
+    config = None
     functions = None  # addr -> Function
+    seen_function_starts = None
+    function_queue = None
+    addr_func = None # addr -> function id
     modifying_code_addr = None  # set of address in code space that may get written to
 
-    def __init__(self, prog):
+    def __init__(self, prog, config):
         self.prog = prog
+        self.config = config
 
-    def decompile(self, start):
-        # TODO: Pass in override options
-        # TODO: Add something that finds potential function start points
-        self.functions = self.extract_functions(start)
+    def decompile(self):
+        self.functions = {}
+        self.addr_func = {}
+        self.seen_function_starts = set()
+
+        self.function_queue = Queue()
+        self.function_queue.put(0)
+        for addr in self.config['functions'].keys():
+            self.function_queue.put(addr)
+
+        self.extract_functions()
+
+        # Do the auto detection afterward the regular extract functions, to minimize false positives
+        if self.config['auto_detect_functions']:
+            self.auto_detect_functions()
+            self.extract_functions()
+
         self.modifying_code_addr = set()
         for func in self.functions.values():
+            logging.info('Building code graph for function %s' % func.name())
             func.build_code_graph()
             func.set_variable_assignments()
 
@@ -364,159 +419,248 @@ class Decompiler:
                             self.modifying_code_addr.add(target_addr)
                             logging.warning('Self-modifying code: Instruction at %d writes to %d' % (node.addr, target_addr))
 
+    def generate_memory_dump(self, start_addr, end_addr):
+        lines = ['']
+
+        addr = start_addr
+        cur_line = None
+        cnt = 0
+
+        while addr < end_addr:
+            if addr in self.config['opcode_dump']:
+                if cur_line is not None:
+                    lines.append(cur_line)
+                    lines.append('')
+                    cur_line = None
+                while addr < end_addr:
+                    opcode = self.prog.mem[addr] % 100
+                    opcode_addr = addr
+                    if opcode in self.prog.opcodes:
+                        (asm, _) = self.prog.decode(addr)
+                        (_, _, length, _) = self.prog.opcodes[opcode]
+                        addr += length
+                    else:
+                        asm = 'DB %d' % opcode
+                        addr += 1
+                    lines.append('    # %4d: %s' % (opcode_addr, asm))
+            else:
+                if cnt > 10:
+                    lines.append(cur_line)
+                    cur_line = None
+                    cnt = 0
+                if cur_line is None:
+                    cur_line = '    # %4d: DB %d' % (addr, self.prog.mem[addr])
+                else:
+                    cur_line += ', %d' % self.prog.mem[addr]
+                cnt += 1
+                addr += 1
+
+        if cur_line is not None:
+            lines.append(cur_line)
+        return lines
 
     def generate_code(self):
         lines = []
         lines.append('from goto import with_goto')
         lines.append('from lib.intcode import *')
+        lines.append('from lib.intcode_decompile import *')
         lines.append('')
-        lines.append('class DecompiledProgram(Program):')
-        #lines.append('')
+        lines.append('class DecompiledProgram(DecompiledProgramBase):')
+        lines.append('')
         #lines.append('    def __init__(self, input, output):')
         #lines.append('        self.input = input')
         #lines.append('        self.output = output')
-        for func in self.functions.values():
+
+        if self.config['global_variables']:
+            for addr, name in self.config['global_variables'].items():
+                lines.append('    %s = %d' % (name, self.prog.mem[addr]))
+
+        last_addr = 0
+        for func_addr in sorted(self.functions.keys()):
+            if func_addr > last_addr:
+                lines.extend(self.generate_memory_dump(last_addr, func_addr))
+
+            func = self.functions[func_addr]
             lines.append('')
             lines.extend(func.generate_code())
+            last_addr = func_addr + func.length
+
+        lines.extend(self.generate_memory_dump(last_addr, self.prog.last_addr()))
+
+        # Dynamic dispatch table
+
+        lines.append('    funcs = {')
+        lines.append('      ' + ', '.join(['%d: %s' % (func_addr, func.name()) for func_addr, func in sorted(self.functions.items())]))
+        lines.append('    }')
+
         return lines
 
-    def extract_functions(self, *ip):
-        '''Detects all functions reachable from the given addresses.
-        Returns a List[Function]'''
+    def auto_detect_functions(self):
+        # Find all addresses where we increase the stack pointer
+        # OPCODE_ADD_BP + 100, <positive number>
+        for i in range(self.prog.last_addr()+1):
+            if (self.prog.mem[i] == OPCODE_ADD_BP + 100 and self.prog.mem[i+1] >= 1 and
+                    self.prog.mem[i+1] <= MAX_FRAME_SIZE and i not in self.addr_func):
+                logging.info('Auto-detected function at %d' % i)
+                self.function_queue.put(i)
 
-        funcs = {}  # start_addr -> Function
-        addr_func = {}  # addr -> function id
+    def extract_functions(self):
+        while not self.function_queue.empty():
+            start_ip = self.function_queue.get()
+            if start_ip not in self.seen_function_starts:
+                func = self.extract_function(start_ip)
+                self.seen_function_starts.add(start_ip)
+                if func:
+                    self.functions[start_ip] = func
 
-        funcq = Queue()  # queue of address of all function starts
-        for addr in ip:
-            funcq.put(addr)
-        while not funcq.empty():  # processing a function
-            start_ip = funcq.get()
-            if start_ip in funcs:
-                continue  # Already done this function
+    def extract_function(self, start_ip):
+        if self.config['functions'].get(start_ip) == FUNC_TYPE_SKIP:
+            logging.info('Skipping extracting function at %s' % start_ip)
+            return
+        if start_ip in self.addr_func:
+            logging.warning('Tried to start extracting function at %d but that address is already covered by function at %d' % (start_ip, self.addr_func[start_ip]))
 
-            if start_ip in addr_func:
-                logging.warning('Tried to start extracting function at %d but that address is already covered by function at %d' % (start_ip, addr_func[start_ip]))
+        # Determine frame size
+        (opcode, params, modes) = self.decode(start_ip)
+        if opcode == OPCODE_ADD_BP and modes[0] == MODE_IMMEDIATE:
+            frame_size = params[0]
+        else:
+            frame_size = 0
+
+        logging.info('Starting extracting function %d with frame size %d' % (start_ip, frame_size))
+
+        func_name = self.config['functions'].get(start_ip)
+        if not func_name:
+            func_name = 'func%d' % start_ip
+
+        func_addr = set()  # all addresses that are part of this function
+        func_calls = {}  # func_calls[x] = (y, z)  => at addr x we're calling function at y and return to address z
+        ret_addr = {}  # ret_addr[x] = y  => the return address y was set at x
+        ipq = []  # queue of addresses reachable within the current function
+        jumps = {}  # jumps[x] = y  => there is a jump (not call) from x to y
+        heapq.heappush(ipq, start_ip)
+        while ipq:
+            ip = heapq.heappop(ipq)
+            if ip < 0 or ip > self.prog.last_addr():
+                logging.warning('Trying to read outside memory at %d' % ip)
+                continue
+            if ip in func_addr:
+                # This is ok, can be a loop or something
+                continue
+            if func_addr and ip-1 not in func_addr:
+                logging.warning('Function %d reached address %d but last seen opcode was at address %d' % (start_ip, ip, max(func_addr)))
+                # Aborting extracting this function since it's probably over;
+                # this might not be correct if the code is a bit weird so might want to have an option for this
+                break
+            if ip in self.addr_func:
+                # This is not ok; what was thought to be two functions are intermingled
+                logging.warning('Function %d reached address %d, which is included in function %d' % (start_ip, ip, self.addr_func[ip]))
+
+            (opcode, params, modes) = self.decode(ip)
+            opcode_len = 1 + len(params)
+
+            if opcode not in self.prog.opcodes:
+                logging.warning('Unknown opcode at %d' % ip)
                 continue
 
-            # Determine frame size
-            (opcode, params, modes) = self.decode(start_ip)
-            if opcode == OPCODE_ADD_BP and modes[0] == MODE_IMMEDIATE:
-                frame_size = params[0]
-            else:
-                frame_size = 0
-
-            logging.info('Function %d with frame size %d' % (start_ip, frame_size))
-
-            func_addr = set()  # all addresses that are part of this function
-            func_calls = {}  # func_calls[x] = (y, z)  => at addr x we're calling function at y and return to address z
-            ret_addr = {}  # ret_addr[x] = y  => the return address y was set at x
-            ipq = Queue()  # queue of addresses reachable within the current function
-            ipq.put(start_ip)
-            while not ipq.empty():
-                ip = ipq.get()
-                if ip < 0 or ip > self.prog.last_addr():
-                    logging.warning('Trying to read outside memory at %d' % ip)
+            # Mark the memory of this instruction as belonging to this function
+            for i in range(opcode_len):
+                if ip + i in func_addr:
+                    # Overlapping opcodes - this is weird
+                    logging.warning('Part of opcode at %d was already covered in this function' % (ip + i))
+                elif ip + i in self.addr_func:
+                    # This is odd, should have been caught earlier
+                    logging.warning('Part of opcode at %d was covered by function %d' % (ip+i, self.addr_func[ip+i]))
                     continue
-                if ip in func_addr:
-                    # This is ok, can be a loop or something
-                    continue
-                if ip in addr_func:
-                    # This is not ok; what was thought to be two functions are intermingled
-                    logging.warning('Function %d reached address %d, which is included in function %d' % (start_ip, ip, all_addr[ip]))
+                func_addr.add(ip + i)
 
-                (opcode, params, modes) = self.decode(ip)
-                opcode_len = 1 + len(params)
-
-                if opcode not in self.prog.opcodes:
-                    logging.warning('Unknown opcode at %d' % ip)
-                    continue
-
-                # Mark the memory of this instruction as belonging to this function
-                for i in range(opcode_len):
-                    if ip + i in func_addr:
-                        # Overlapping opcodes - this is weird
-                        logging.warning('Part of opcode at %d was already covered in this function' % (ip + i))
-                    elif ip + i in addr_func:
-                        # This is odd, should have been caught earlier
-                        logging.warning('Part of opcode at %d was covered by function %d' % (ip+i, addr_func[ip+i]))
-                        continue
-                    func_addr.add(ip + i)
-
-                if opcode in [OPCODE_JUMP_TRUE, OPCODE_JUMP_FALSE]:
-                    jump_type = 'jump'
-                    # If a hard return address was written to (BP) the previous instruction,
-                    # then this is probably a call, not a jump
-                    if ip-4 in ret_addr:
-                        jump_type = 'call'
-                    poss = self.possible_jump_conditions(ip, jump_type)
-                    s = 'Possible' if len(poss) == 2 else 'Mandatory'
-                    for v in poss:
-                        if v:
-                            # The jump/call/return may happen
-                            if modes[1] == MODE_RELATIVE and params[1] == 0:
-                                # Return statement
-                                logging.info('%s return at %d' % (s, ip))
-                            else:
-                                target = self.jump_target(ip, jump_type)
-                                logging.info('%s %s to %s from %d' % (s, jump_type, str(target) if target is not None else '?', ip))
-
-                                if target is not None:
-                                    if jump_type == 'jump':
-                                        ipq.put(target)
-                                    else:
-                                        func_calls[ip] = (target, ret_addr[ip-4])
-                                        funcq.put(target)
-                                        ipq.put(ret_addr[ip-4])
-
-                                elif modes[1] == MODE_RELATIVE:
-                                    # !?
-                                    logging.warning('Target address of %s at %d was relative but not a return statement; more investigation needed' % (jump_type, ip))
-                                else:
-                                    logging.warning('Target address of %s at %d not known; more investigation needed' % (jump_type, ip))
-                                    func_calls[ip] = (None, ret_addr[ip-4])
-
-
+            if opcode in [OPCODE_JUMP_TRUE, OPCODE_JUMP_FALSE]:
+                jump_type = 'jump'
+                # If a hard return address was written to (BP) the previous instruction,
+                # then this is probably a call, not a jump
+                if ip-4 in ret_addr:
+                    jump_type = 'call'
+                poss = self.possible_jump_conditions(ip, jump_type)
+                s = 'Possible' if len(poss) == 2 else 'Mandatory'
+                for v in poss:
+                    if v:
+                        # The jump/call/return may happen
+                        if modes[1] == MODE_RELATIVE and params[1] == 0:
+                            # Return statement
+                            logging.debug('%s return at %d' % (s, ip))
                         else:
-                            # The jump may not happen
-                            ipq.put(ip + opcode_len)
-                elif opcode != OPCODE_HALT:
-                    fv = self.fixed_value(ip)
-                    if fv is not None and modes[2] == MODE_RELATIVE and params[2] == 0:
-                        logging.info('At %d, set return address to %d' % (ip, fv))
-                        if fv != ip+7:
-                            # Warn if we don't have the pattern
-                            # X: <set return address to X+7>
-                            # X+4: <call somewhere>
-                            # X+7: <continue here after return>
-                            logging.warning('Return address is not the expected one')
-                        ret_addr[ip] = fv
+                            target = self.jump_target(ip, jump_type)
+                            logging.debug('%s %s to %s from %d' % (s, jump_type, str(target) if target is not None else '?', ip))
 
-                    ipq.put(ip + opcode_len)
+                            if target is not None:
+                                if jump_type == 'jump':
+                                    if target < start_ip:
+                                        logging.warning('Strange jump at %d to %d which is before function starts; ignoring' % (ip, target))
+                                    else:
+                                        heapq.heappush(ipq, target)
+                                        jumps[ip] = target
+                                else:
+                                    func_calls[ip] = (target, ret_addr[ip-4])
+                                    self.function_queue.put(target)
+                                    heapq.heappush(ipq, ret_addr[ip-4])
 
+                            elif modes[1] == MODE_RELATIVE:
+                                # !?
+                                logging.warning('Target address of %s at %d was relative but not a return statement; more investigation needed' % (jump_type, ip))
+                            else:
+                                logging.warning('Target address of %s at %d not known; dynamic dispatching will be used' % (jump_type, ip))
+                                func_calls[ip] = (None, ret_addr[ip-4])
+                    else:
+                        # The jump may not happen
+                        heapq.heappush(ipq, ip + opcode_len)
+            elif opcode != OPCODE_HALT:
+                fv = self.fixed_value(ip)
+                if fv is not None and modes[2] == MODE_RELATIVE and params[2] == 0:
+                    logging.debug('At %d, set return address to %d' % (ip, fv))
+                    if fv != ip+7:
+                        # Warn if we don't have the pattern
+                        # X: <set return address to X+7>
+                        # X+4: <call somewhere>
+                        # X+7: <continue here after return>
+                        logging.warning('Return address is not the expected one')
+                    ret_addr[ip] = fv
 
-            # Verify function is continuous and sane
-            # Otherwise something is fishy and will break later on
-            func_len = max(func_addr) - min(func_addr) + 1
-            if min(func_addr) != start_ip:
-                logging.warning('Function %d reached earlier byte at %d' % (start_ip, min(func_addr)))
-            else:
-                if func_len != len(func_addr):
-                    logging.warning('Function %d covered range [%d,%d] but only %d bytes reached.' % (start_ip, min(func_addr), max(func_addr), len(func_addr)))
+                heapq.heappush(ipq, ip + opcode_len)
+
+        # Check if we have jumps in the covered area to outside id
+        for ip, target in jumps.items():
+            if target < min(func_addr) or target > max(func_addr):
+                func_calls[ip] = (target, -1)
+                self.function_queue.put(target)
+                if frame_size != 0:
+                    # This is suspicious
+                    logging.warning("Jump at %d in proper function is actually to function %d" % (ip, target))
                 else:
-                    logging.info('Successfully identified function [%d,%d]' % (start_ip, max(func_addr)))
-                funcs[start_ip] = Function(self, start_ip, func_len, frame_size, func_calls)
-                for addr in func_addr:
-                    addr_func[addr] = start_ip
+                    # This is ok, typically in the bootstrap code
+                    logging.info("Jump at %d is actually to function %d" % (ip, target))
 
-        return funcs
+        # Verify function is continuous and sane
+        # Otherwise something is fishy and will break later on
+        func_len = max(func_addr) - min(func_addr) + 1
+        if min(func_addr) != start_ip:
+            logging.warning('Function %d reached earlier byte at %d' % (start_ip, min(func_addr)))
+        else:
+            if func_len != len(func_addr):
+                logging.warning('Function %d covered range [%d,%d] but only %d bytes reached; skipping it' % (start_ip, min(func_addr), max(func_addr), len(func_addr)))
+            else:
+                logging.info('Successfully identified function [%d,%d]' % (start_ip, max(func_addr)))
+                for addr in func_addr:
+                    self.addr_func[addr] = start_ip
+
+                return Function(self, start_ip, func_len, frame_size, func_name, func_calls)
 
     def jump_target(self, ip, jump_type='jump'):
         '''Determines the jump target address at a given ip. Returns None if not possible to figure out.'''
         (_, params, modes) = self.decode(ip)
         target = None
-        if ip in OVERRIDE_TARGET_ADDRESS:
-            target = OVERRIDE_TARGET_ADDRESS[ip]
+
+        if ip in self.config['override_target_address']:
+            target = self.config['override_target_address'][ip]
         elif modes[1] == MODE_IMMEDIATE:
             target = params[1]
         return target
@@ -530,15 +674,16 @@ class Decompiler:
         mode = (opcode // 100) % 10  # mode of the variable being checked
         opcode %= 100
         assert opcode in [OPCODE_JUMP_FALSE, OPCODE_JUMP_TRUE]
-        if ip in OVERRIDE_JUMP_CONDITIONS:
-            logging.info('%s at %d is overridden to %s' % (jump_type.capitalize(), ip, str(OVERRIDE_JUMP_CONDITIONS[ip])))
-            return OVERRIDE_JUMP_CONDITIONS[ip]
+        if ip in self.config['override_jump_conditions']:
+            jc = self.config['override_jump_conditions'][ip]
+            logging.debug('%s at %d is overridden to %s' % (jump_type.capitalize(), ip, str(jc)))
+            return jc
         if mode != MODE_IMMEDIATE:
-            logging.info('%s at %d is conditional' % (jump_type.capitalize(), ip))
+            logging.debug('%s at %d is conditional' % (jump_type.capitalize(), ip))
             return [False, True]  # indirect addressing, we can't know for sure
         v = self.prog.read(ip+1)
         will_jump = (v != 0) == (opcode == OPCODE_JUMP_TRUE)
-        logging.info('%s at %d will %s happen' % (jump_type.capitalize(), ip, 'always' if will_jump else 'never'))
+        logging.debug('%s at %d will %s happen' % (jump_type.capitalize(), ip, 'always' if will_jump else 'never'))
         return [will_jump]
 
     def mem_address(self, ip, addr):
@@ -546,15 +691,27 @@ class Decompiler:
         # but ip is where we got this info from; it could maybe be modified, in which case we need to read the actual value
         if ip in self.modifying_code_addr:
             return 'self.mem[self.mem[%d]]' % ip
-        if addr in LOCAL_VARIABLES:
-            return 'v%04d' % addr
-        elif addr in GLOBAL_VARIABLES:
-            return 'g%04d' % addr
+        if addr in self.config['local_variables']:
+            return self.config['local_variables'][addr]
+        elif addr in self.config['global_variables']:
+            return 'self.%s' % self.config['global_variables'][addr]
         return 'self.mem[%d]' % addr
+
+    def immediate_value(self, ip, value):
+        # value is the value we seemingly read
+        # but ip is where we got this info from; it could maybe be modified, in which case we need to read the actual value
+        if ip in self.modifying_code_addr:
+            return 'self.mem[%d]' % ip
+        return str(value)
 
     def fixed_value(self, ip):
         '''If the MOV or MUL instruction at ip always writes a fixed integer, return that integer.
         Otherwise return None.'''
+
+        if self.modifying_code_addr and (ip+1 in self.modifying_code_addr or ip+2 in self.modifying_code_addr):
+            logging.info('Not a fixed value at %d due to self modifying code' % ip)
+            return None
+
         opcode = self.prog.read(ip)
         p1 = self.prog.read(ip+1)
         p2 = self.prog.read(ip+2)
@@ -599,14 +756,40 @@ def fixed_value(opcode, p, m):
     else:
         return None
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.WARNING)
+class DecompiledProgramBase(Program):
+    pass
 
-    code = '3,8,1005,8,330,1106,0,11,0,0,0,104,1,104,0,3,8,102,-1,8,10,101,1,10,10,4,10,1008,8,0,10,4,10,102,1,8,29,3,8,1002,8,-1,10,1001,10,1,10,4,10,1008,8,0,10,4,10,101,0,8,51,1,1103,2,10,1006,0,94,1006,0,11,1,1106,13,10,3,8,1002,8,-1,10,101,1,10,10,4,10,1008,8,1,10,4,10,1001,8,0,87,3,8,102,-1,8,10,101,1,10,10,4,10,1008,8,0,10,4,10,1001,8,0,109,2,1105,5,10,2,103,16,10,1,1103,12,10,2,105,2,10,3,8,102,-1,8,10,1001,10,1,10,4,10,108,1,8,10,4,10,1001,8,0,146,1006,0,49,2,1,12,10,2,1006,6,10,1,1101,4,10,3,8,1002,8,-1,10,1001,10,1,10,4,10,108,0,8,10,4,10,1001,8,0,183,1,6,9,10,1006,0,32,3,8,102,-1,8,10,1001,10,1,10,4,10,1008,8,1,10,4,10,101,0,8,213,2,1101,9,10,3,8,1002,8,-1,10,1001,10,1,10,4,10,1008,8,1,10,4,10,101,0,8,239,1006,0,47,1006,0,4,2,6,0,10,1006,0,58,3,8,1002,8,-1,10,1001,10,1,10,4,10,1008,8,0,10,4,10,102,1,8,274,2,1005,14,10,1006,0,17,1,104,20,10,1006,0,28,3,8,102,-1,8,10,1001,10,1,10,4,10,108,1,8,10,4,10,1002,8,1,309,101,1,9,9,1007,9,928,10,1005,10,15,99,109,652,104,0,104,1,21101,0,937263411860,1,21102,347,1,0,1105,1,451,21101,932440724376,0,1,21102,1,358,0,1105,1,451,3,10,104,0,104,1,3,10,104,0,104,0,3,10,104,0,104,1,3,10,104,0,104,1,3,10,104,0,104,0,3,10,104,0,104,1,21101,0,29015167015,1,21101,0,405,0,1106,0,451,21102,1,3422723163,1,21101,0,416,0,1106,0,451,3,10,104,0,104,0,3,10,104,0,104,0,21101,0,868389376360,1,21101,0,439,0,1105,1,451,21102,825544712960,1,1,21102,1,450,0,1106,0,451,99,109,2,21201,-1,0,1,21101,0,40,2,21102,482,1,3,21102,1,472,0,1106,0,515,109,-2,2106,0,0,0,1,0,0,1,109,2,3,10,204,-1,1001,477,478,493,4,0,1001,477,1,477,108,4,477,10,1006,10,509,1101,0,0,477,109,-2,2106,0,0,0,109,4,2101,0,-1,514,1207,-3,0,10,1006,10,532,21102,1,0,-3,22101,0,-3,1,22102,1,-2,2,21102,1,1,3,21101,551,0,0,1106,0,556,109,-4,2105,1,0,109,5,1207,-3,1,10,1006,10,579,2207,-4,-2,10,1006,10,579,22102,1,-4,-4,1106,0,647,21201,-4,0,1,21201,-3,-1,2,21202,-2,2,3,21102,1,598,0,1106,0,556,22101,0,1,-4,21101,1,0,-1,2207,-4,-2,10,1006,10,617,21102,0,1,-1,22202,-2,-1,-2,2107,0,-3,10,1006,10,639,21201,-1,0,1,21102,639,1,0,105,1,514,21202,-2,-1,-2,22201,-4,-2,-4,109,-5,2105,1,0'
-    #code = '1,380,379,385,1008,2663,704183,381,1005,381,12,99,109,2664,1102,1,0,383,1102,0,1,382,20102,1,382,1,21001,383,0,2,21102,37,1,0,1105,1,578,4,382,4,383,204,1,1001,382,1,382,1007,382,44,381,1005,381,22,1001,383,1,383,1007,383,23,381,1005,381,18,1006,385,69,99,104,-1,104,0,4,386,3,384,1007,384,0,381,1005,381,94,107,0,384,381,1005,381,108,1105,1,161,107,1,392,381,1006,381,161,1102,-1,1,384,1105,1,119,1007,392,42,381,1006,381,161,1101,0,1,384,20102,1,392,1,21102,21,1,2,21102,1,0,3,21102,138,1,0,1105,1,549,1,392,384,392,20101,0,392,1,21102,21,1,2,21101,3,0,3,21101,0,161,0,1106,0,549,1101,0,0,384,20001,388,390,1,21002,389,1,2,21102,180,1,0,1106,0,578,1206,1,213,1208,1,2,381,1006,381,205,20001,388,390,1,20102,1,389,2,21101,0,205,0,1105,1,393,1002,390,-1,390,1102,1,1,384,21001,388,0,1,20001,389,391,2,21102,1,228,0,1106,0,578,1206,1,261,1208,1,2,381,1006,381,253,20102,1,388,1,20001,389,391,2,21101,253,0,0,1105,1,393,1002,391,-1,391,1101,1,0,384,1005,384,161,20001,388,390,1,20001,389,391,2,21101,0,279,0,1105,1,578,1206,1,316,1208,1,2,381,1006,381,304,20001,388,390,1,20001,389,391,2,21101,0,304,0,1106,0,393,1002,390,-1,390,1002,391,-1,391,1101,0,1,384,1005,384,161,20102,1,388,1,21002,389,1,2,21102,0,1,3,21101,0,338,0,1106,0,549,1,388,390,388,1,389,391,389,21002,388,1,1,21001,389,0,2,21102,1,4,3,21102,365,1,0,1105,1,549,1007,389,22,381,1005,381,75,104,-1,104,0,104,0,99,0,1,0,0,0,0,0,0,414,20,18,1,1,22,109,3,22102,1,-2,1,21202,-1,1,2,21102,1,0,3,21101,0,414,0,1106,0,549,21201,-2,0,1,21202,-1,1,2,21101,429,0,0,1105,1,601,1201,1,0,435,1,386,0,386,104,-1,104,0,4,386,1001,387,-1,387,1005,387,451,99,109,-3,2106,0,0,109,8,22202,-7,-6,-3,22201,-3,-5,-3,21202,-4,64,-2,2207,-3,-2,381,1005,381,492,21202,-2,-1,-1,22201,-3,-1,-3,2207,-3,-2,381,1006,381,481,21202,-4,8,-2,2207,-3,-2,381,1005,381,518,21202,-2,-1,-1,22201,-3,-1,-3,2207,-3,-2,381,1006,381,507,2207,-3,-4,381,1005,381,540,21202,-4,-1,-1,22201,-3,-1,-3,2207,-3,-4,381,1006,381,529,22102,1,-3,-7,109,-8,2106,0,0,109,4,1202,-2,44,566,201,-3,566,566,101,639,566,566,2101,0,-1,0,204,-3,204,-2,204,-1,109,-4,2105,1,0,109,3,1202,-1,44,594,201,-2,594,594,101,639,594,594,20101,0,0,-2,109,-3,2106,0,0,109,3,22102,23,-2,1,22201,1,-1,1,21102,509,1,2,21102,150,1,3,21101,1012,0,4,21102,630,1,0,1106,0,456,21201,1,1651,-2,109,-3,2105,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,2,2,0,2,0,2,2,2,2,2,0,2,2,2,2,2,2,0,2,0,2,2,2,0,2,0,0,2,2,2,0,2,2,2,2,0,2,0,0,2,0,1,1,0,2,0,2,0,2,2,2,2,0,0,2,2,2,2,0,2,2,0,2,2,2,2,2,2,2,2,2,2,0,0,2,0,2,2,2,0,2,2,2,2,0,1,1,0,2,2,2,0,0,2,0,0,2,0,2,0,2,0,0,0,0,2,2,2,2,2,2,0,2,0,0,0,0,0,2,0,2,2,2,2,2,2,2,0,0,1,1,0,2,2,2,2,2,2,0,0,0,2,2,2,0,2,2,0,2,2,2,0,0,2,2,0,2,0,2,2,2,0,2,2,0,2,2,2,2,2,2,2,0,1,1,0,2,0,2,2,0,2,2,0,2,0,2,2,0,0,2,2,2,2,2,2,2,0,0,0,0,2,2,0,2,2,0,0,2,2,0,0,2,2,2,2,0,1,1,0,2,2,2,2,2,2,2,0,0,2,0,2,0,2,2,2,2,2,0,0,2,0,2,2,2,2,2,2,2,0,0,0,0,2,2,2,2,0,2,0,0,1,1,0,2,0,0,2,0,2,0,2,2,2,2,2,0,2,2,0,2,0,2,0,2,2,0,0,2,2,2,2,2,0,2,2,0,2,0,0,2,2,2,0,0,1,1,0,0,2,2,2,2,0,0,0,2,2,0,2,2,2,0,2,2,2,2,2,0,2,2,2,2,2,2,2,0,0,0,0,2,2,0,2,2,2,2,2,0,1,1,0,2,0,2,2,2,2,2,2,0,2,2,2,0,2,0,2,2,0,2,2,2,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,2,2,2,0,0,1,1,0,2,0,2,2,2,0,2,0,2,0,2,2,2,0,0,0,2,2,2,2,0,0,2,2,2,2,2,2,2,2,2,2,2,0,0,2,2,0,0,0,0,1,1,0,2,0,2,0,0,2,2,2,2,2,2,2,2,0,0,0,2,2,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,2,0,0,2,2,0,2,0,1,1,0,2,2,2,0,2,2,0,2,2,2,2,2,2,2,2,2,0,2,2,0,0,2,2,2,0,0,2,2,2,0,2,2,2,2,0,2,0,2,2,2,0,1,1,0,2,2,2,2,2,2,0,2,2,2,2,2,2,2,0,2,2,2,2,2,0,2,0,2,2,2,2,2,0,2,2,2,2,0,0,2,2,2,2,2,0,1,1,0,2,2,0,2,2,0,2,0,2,2,0,0,2,2,2,2,2,0,2,2,0,2,2,0,2,2,2,2,0,2,2,0,2,0,2,2,2,2,0,0,0,1,1,0,2,0,2,2,2,0,2,2,2,2,2,2,0,2,0,2,2,2,0,0,2,2,2,2,2,0,2,0,2,0,2,0,2,0,2,2,2,0,0,2,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,34,29,24,40,90,52,13,48,86,82,86,77,3,16,27,97,89,38,11,82,76,15,50,46,33,57,17,38,39,91,43,86,43,55,15,24,23,74,5,53,20,10,16,77,73,84,85,36,89,77,79,82,37,7,24,68,14,78,75,7,86,80,18,84,68,62,89,7,64,11,9,56,62,3,29,95,41,23,18,90,1,10,4,94,8,69,57,13,72,89,61,72,61,17,54,88,96,53,73,21,92,16,52,18,26,89,32,2,50,8,3,5,36,26,64,75,51,55,49,45,78,49,27,55,2,29,37,77,69,3,21,69,6,18,59,91,57,92,6,26,58,40,26,54,33,40,96,45,89,23,53,94,61,44,32,33,41,12,31,67,17,96,34,72,72,49,90,21,1,40,75,97,56,57,77,20,21,68,14,4,7,9,41,88,32,40,79,77,17,48,70,56,50,67,36,16,98,98,65,98,53,7,36,47,27,15,77,80,83,39,8,22,61,11,9,10,54,16,65,54,82,60,66,21,92,51,70,17,53,22,39,89,92,29,12,60,37,42,75,65,1,61,90,86,46,62,81,2,64,64,21,43,17,46,57,72,25,63,51,30,22,65,81,54,85,45,93,24,23,23,27,37,94,11,15,93,78,75,11,41,56,42,89,20,73,23,27,98,89,29,68,73,89,75,80,31,90,36,62,44,65,18,97,24,22,84,30,56,41,44,67,63,71,85,76,66,64,51,58,98,30,66,4,90,38,8,49,49,62,55,53,5,74,18,93,4,34,48,86,17,37,35,28,45,38,76,95,67,21,67,6,36,38,1,16,5,8,89,9,37,32,78,90,46,92,61,3,96,40,91,31,98,35,90,96,44,43,55,39,51,64,51,39,12,90,58,69,58,39,13,49,60,35,40,56,56,74,47,54,23,8,54,59,97,12,8,62,21,66,59,96,61,54,12,98,28,85,95,2,4,14,89,78,4,16,66,48,37,43,17,59,77,20,63,28,87,10,20,58,46,55,26,94,3,71,5,13,90,67,68,55,93,38,16,28,45,47,41,88,98,90,95,44,33,89,54,24,33,38,94,79,32,15,62,26,52,39,8,22,38,79,3,60,75,55,91,53,36,59,86,1,98,25,87,84,47,83,40,74,22,91,86,73,73,6,15,72,90,43,87,97,63,24,77,20,76,10,96,65,27,69,87,93,17,34,5,52,31,24,46,4,26,3,34,87,96,68,16,82,85,67,65,11,57,71,49,62,77,5,68,20,51,26,40,67,69,32,82,46,57,15,31,81,38,74,98,3,77,78,36,10,55,76,48,90,2,8,21,29,17,66,51,91,59,36,8,2,85,50,53,76,38,91,24,54,6,6,28,20,25,7,56,87,44,54,98,6,10,94,44,93,25,26,65,22,87,52,47,36,1,22,21,32,49,7,72,66,89,92,63,85,90,82,79,33,36,39,69,15,57,80,46,39,28,79,73,43,95,81,21,47,39,68,30,34,79,33,72,14,54,96,52,60,16,9,73,54,78,77,26,89,14,14,28,83,47,81,87,14,86,11,96,29,10,2,84,1,70,59,81,64,29,25,40,53,87,4,42,76,80,48,39,85,60,96,95,78,30,8,83,46,62,68,82,40,15,43,51,81,65,64,3,81,13,48,70,97,95,6,23,91,66,63,22,70,28,10,42,90,91,80,34,29,48,18,96,78,14,17,88,13,96,72,72,86,45,95,59,20,67,65,35,89,46,76,35,7,35,4,64,58,15,98,39,81,2,95,10,75,56,85,22,31,22,14,9,12,48,15,75,91,85,91,26,40,78,23,76,5,45,6,79,58,4,70,7,10,79,56,98,86,34,18,73,57,70,97,72,59,75,36,30,21,41,38,83,93,64,92,89,17,65,19,93,9,83,51,3,20,71,89,37,70,3,90,13,35,95,43,14,78,3,43,15,11,21,36,50,12,27,47,58,18,8,66,23,32,7,88,82,27,21,23,5,80,79,44,87,19,11,47,15,14,18,14,95,54,81,76,93,51,53,63,97,39,11,30,26,89,6,29,15,21,49,57,53,52,93,83,11,95,28,58,79,22,65,58,93,89,60,49,78,55,22,42,25,14,61,66,28,84,43,4,68,54,68,17,46,13,88,30,39,40,35,35,14,69,34,55,93,43,7,20,82,83,50,25,50,26,78,17,93,7,10,24,3,27,85,97,88,62,65,11,66,36,38,14,32,31,94,14,3,38,39,96,23,64,89,91,37,9,5,44,4,18,43,64,53,58,96,84,67,96,24,86,49,30,49,24,4,46,57,704183'
+def load_config(config_file):
+    with open(config_file, 'r') as f:
+        s = ''
+        for line in f.readlines():
+            if not line.strip().startswith('#'):
+                s += line
+        config = json.loads(s)
+        config['functions'] = {int(k) :v for k, v in config['functions'].items()}
+        config['override_target_address'] = {int(k): v for k, v in config['override_target_address'].items()}
+        config['override_jump_conditions'] = {int(k): v for k, v in config['override_jump_conditions'].items()}
+        config['global_variables'] = {int(k): v for k, v in config['global_variables'].items()}
+        config['local_variables'] = {int(k): v for k, v in config['local_variables'].items()}
+        return config
+
+@argh.arg('--config', help='Config file')
+@argh.arg('--no-output', help='Just analyze, no output', action='store_true')
+def main(config=None, no_output=False):
+    if config:
+        config = load_config(config)
+
+    code = sys.stdin.readline()
     prog = Program(code)
-    decompiler = Decompiler(prog)
-    decompiler.decompile(330)  # day 11
-    #decompiler.decompile(12)  # day 13
-    for line in decompiler.generate_code():
-        print(line)
+    decompiler = Decompiler(prog, config)
+    decompiler.decompile()
+
+    if not no_output:
+        for line in decompiler.generate_code():
+            print(line)
+
+if __name__ == "__main__":
+    parser = argh.ArghParser()
+
+    logging.basicConfig(level=logging.INFO)
+    argh.dispatch_command(main)
