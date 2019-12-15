@@ -31,7 +31,6 @@ def search(pos):
             if status:
                 if status == 2:
                     goal = new_pos
-                    print('foal goal at %s' % str(goal))
                 search(new_pos)
                 input_queue.put(OPP_DIR[dir]+1)
                 status = prog.run_until_next_io()
@@ -41,15 +40,17 @@ def search(pos):
 
 
 search(Point(0,0))
+map[Point(0,0)] = 'S'
+map[goal] = 'G'
 
 print_array(gridify_sparse_map(map))
 
 g = {}
 for p, c in map.items():
-    if c == '.':
+    if c in '.GS':
         neighbors = []
         for d in DIRS:
-            if map[p + d] == '.':
+            if map[p + d] in '.GS':
                 neighbors.append(p+d)
         g[p] = neighbors
 
