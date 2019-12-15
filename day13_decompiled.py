@@ -54,8 +54,9 @@ class Writer:
 
 lines = data.strip().split('\n')
 
-from day13_generated import DecompiledProgram
+from day13_generated2 import DecompiledProgram
 prog = DecompiledProgram()
+prog.mem[380]=1
 prog.init_io(Reader(), Writer())
 prog.run_until_halted()
 
@@ -68,8 +69,8 @@ util.print_array(util.gridify_sparse_map(map))
 
 print("%d block tiles" % cnt)
 
-from day13_generated2 import DecompiledProgram
 prog = DecompiledProgram()
+prog.mem[380]=0
 prog.init_io(Reader(), Writer())
 prog.run_until_halted()
 
