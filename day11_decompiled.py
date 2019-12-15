@@ -34,17 +34,19 @@ class Writer:
             pos += DIRECTIONS[dir]
             self.p = 0
 
-prog = DecompiledProgram(data)
-
 # # Star 1
-# pos=Point(0,0)
-# dir=0
+pos=Point(0,0)
+dir=0
 
-# map = defaultdict(int)
+map = defaultdict(int)
 
-# prog.run(Reader(), Writer())
+prog = DecompiledProgram()
+prog.init_io(Reader(), Writer())
+#prog.run_until_halted()
+t = prog.start_async()
+t.join()
 
-# print(len(map))
+print(len(map))
 
 # Star 2
 pos=Point(0,0)
@@ -53,8 +55,8 @@ dir=0
 map = defaultdict(int)
 map[Point(0,0)] = 1
 
-prog.reset()
+prog = DecompiledProgram()
 prog.init_io(Reader(), Writer())
-prog.func330()
+prog.run_until_halted()
 
 util.print_array(util.gridify_sparse_map(map))

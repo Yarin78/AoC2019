@@ -3,6 +3,8 @@ import json
 import logging
 import itertools
 import heapq
+import threading
+from collections import defaultdict
 from queue import Queue
 from lib.intcode import *
 
@@ -88,43 +90,50 @@ class Node:
                 if j != len(self.instr) - 1:
                     # Can happen if a jump can never be evaluated to true
                     code = ''
-                elif len(self.children) < 2:
-                    # No branch, the jump will be taken care of elsewhere
-                    code = ''
-                    if ip in self.func.func_calls:
-                        (target_addr, _) = self.func.func_calls[ip]
-                        # Even if there is an address in func_calls,
-                        # it might be a modified instruction, hence the isdigit() check
-                        if target_addr is None or not param_str[1].isdigit():
-                            # Dynamic dispatcher; the number of parameters is a problem,
-                            # we'll assume it's the same as the numbers set in the instructions before
-                            # Might be wrong on the numbers returned though
-                            num_set = self.num_calling_params_set()
-                            call_vars = ', '.join(['q%d' % x for x in range(num_set)])
-                            mem_addr = param_str[1]
-                            if call_vars:
-                                code = '(%s) = self.funcs[%s](self, %s)' % (call_vars, mem_addr, call_vars)
-                            else:
-                                code = 'self.funcs[%s](self)' % mem_addr
-                        else:
-                            # If we call a function with frame_size 5 (4 parameters/local vars),
-                            # all of them may not have been set.
-                            num_params_set = len(list(itertools.takewhile(
-                                lambda x: self._local_var_name(x) in self.variables_assigned,
-                                range(1, 20))))
-                            code = self.decompiler.functions[target_addr].call_instr(num_params_set)
-                    else:
-                        code = '? %d' % len(self.children)
                 else:
-                    if ip in self.func.func_calls:
-                        logging.warning('Conditional function calls not supported (%d)' % ip)
                     condition = param_str[0]
                     if opcode == OPCODE_JUMP_FALSE:
                         condition = 'not %s' % condition
-                    code = [
-                        'if %s:' % condition,
-                        '    goto .lbl_%d' % self.children[1].addr
-                    ]
+                    if len(self.children) < 2:
+                        # No branch, the jump will be taken care of elsewhere
+                        if ip in self.func.func_calls:
+                            (target_addr, _) = self.func.func_calls[ip]
+                            # Even if there is an address in func_calls,
+                            # it might be a modified instruction, hence the isdigit() check
+                            if target_addr is None or not param_str[1].isdigit():
+                                # Dynamic dispatcher; the number of parameters is a problem,
+                                # we'll assume it's the same as the numbers set in the instructions before
+                                # Might be wrong on the numbers returned though
+                                num_set = self.num_calling_params_set()
+                                call_vars = ', '.join(['q%d' % x for x in range(num_set)])
+                                mem_addr = param_str[1]
+                                if call_vars:
+                                    code = '(%s) = self.funcs[%s](self, %s)' % (call_vars, mem_addr, call_vars)
+                                else:
+                                    code = 'self.funcs[%s](self)' % mem_addr
+                            else:
+                                # If we call a function with frame_size 5 (4 parameters/local vars),
+                                # all of them may not have been set.
+                                num_params_set = len(list(itertools.takewhile(
+                                    lambda x: self._local_var_name(x) in self.variables_assigned,
+                                    range(1, 20))))
+                                code = self.decompiler.functions[target_addr].call_instr(num_params_set)
+                        else:
+                            code = 'pass # %d' % len(self. children)
+                    else:
+                        if ip in self.func.func_calls:
+                            logging.warning('Conditional function calls not supported (%d)' % ip)
+                        code = 'goto .lbl_%d' % self.children[1].addr
+
+                    if condition:
+                        try:
+                            if eval(condition):
+                                pass  # Always true
+                            else:
+                                code = ''  # Always false
+                        except:
+                            # Depends on something that we can evaluate
+                            code = ['if %s:' % condition, '    %s' % code]
             else:
                 code = '?'
             if isinstance(code, list):
@@ -459,7 +468,7 @@ class Decompiler:
             lines.append(cur_line)
         return lines
 
-    def generate_code(self):
+    def generate_code(self, code):
         lines = []
         lines.append('from goto import with_goto')
         lines.append('from lib.intcode import *')
@@ -492,6 +501,11 @@ class Decompiler:
         lines.append('    funcs = {')
         lines.append('      ' + ', '.join(['%d: %s' % (func_addr, func.name()) for func_addr, func in sorted(self.functions.items())]))
         lines.append('    }')
+
+        # Initial memory
+
+        lines.append('')
+        lines.append('    code = "%s"' % code.strip())
 
         return lines
 
@@ -756,8 +770,47 @@ def fixed_value(opcode, p, m):
     else:
         return None
 
-class DecompiledProgramBase(Program):
-    pass
+class DecompiledProgramBase:
+    def __init__(self):
+        mem = list(map(lambda x: int(x), self.code.strip().split(',')))
+        self.mem = defaultdict(int)
+        for i in range(len(mem)):
+            self.mem[i] = mem[i]
+
+    def init_io(self, input=None, output=None):
+        if input is None:
+            self._input = StdinSource()
+            print('Input from stdin')
+        elif isinstance(input, list):
+            self._input = Queue()
+            for x in input:
+                self._input.put(x)
+        else:
+            self._input = input
+
+        if output is None:
+            self._output = StdoutSink()
+            print('Output to stdout')
+        else:
+            self._output = output
+
+    def input(self):
+        return self._input.get()
+
+    def output(self, value):
+        self._output.put(value)
+
+    def run_until_halted(self, start=0):
+        try:
+            self.funcs[start](self)
+        except MachineHaltedException:
+            pass
+
+    def start_async(self, start=0, daemon=False):
+        t = threading.Thread(target=self.run_until_halted, daemon=daemon, args=(start,))
+        t.start()
+        return t
+
 
 def load_config(config_file):
     with open(config_file, 'r') as f:
@@ -785,7 +838,7 @@ def main(config=None, no_output=False):
     decompiler.decompile()
 
     if not no_output:
-        for line in decompiler.generate_code():
+        for line in decompiler.generate_code(code):
             print(line)
 
 if __name__ == "__main__":

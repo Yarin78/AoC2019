@@ -7,7 +7,6 @@ from lib.graph import *
 from lib.geo2d import *
 from lib.intcode import *
 from aocd import data, submit
-from day13_generated import DecompiledProgram
 
 map = {}
 score = 0
@@ -54,18 +53,12 @@ class Writer:
         self.p = (self.p+1)%3
 
 lines = data.strip().split('\n')
-# prog = Program(data)
-prog = DecompiledProgram(data)
 
-#prog.run(Reader(), Writer())
+from day13_generated import DecompiledProgram
+prog = DecompiledProgram()
 prog.init_io(Reader(), Writer())
-prog.mem[385]=prog.mem[380]+prog.mem[379]
-prog.mem[381]=1
-#prog.show(0)
-try:
-    prog.func12()
-except MachineHaltedException:
-    pass
+prog.run_until_halted()
+
 cnt = 0
 for p,v in map.items():
     if v == 2:
@@ -75,15 +68,9 @@ util.print_array(util.gridify_sparse_map(map))
 
 print("%d block tiles" % cnt)
 
-prog.reset()
-prog = DecompiledProgram(data)
+from day13_generated2 import DecompiledProgram
+prog = DecompiledProgram()
 prog.init_io(Reader(), Writer())
-prog.mem[385]=prog.mem[380]*prog.mem[379]
-prog.mem[381]=1
-#prog.run(Reader(), Writer())
-try:
-    prog.func12()
-except MachineHaltedException:
-    pass
+prog.run_until_halted()
 
 print(score)
