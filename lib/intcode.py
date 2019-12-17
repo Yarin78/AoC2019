@@ -169,6 +169,24 @@ class Program(object):
             return None
         return self._output.get()
 
+    def read_token(self):
+        '''Reads a token from the programs output'''
+        s = ''
+        while not self.halted and not self.blocked_on_input:
+            while not self._output.empty():
+                c = self._output.get()
+                if c in [10, 32]:
+                    if s:
+                        return s
+                else:
+                    if c < 32 or c > 127:
+                        assert not s
+                        # non-ASCII values are returned as-is
+                        return c
+                    s += chr(c)
+            self.step()
+        return None
+
     def read_line(self):
         s = ''
         while not self.halted and not self.blocked_on_input:
@@ -177,6 +195,7 @@ class Program(object):
                 if c == 10:
                     return s
                 if c < 32 or c > 127:
+                    assert not s
                     return "<%d>" % c
                 s += chr(c)
             self.step()

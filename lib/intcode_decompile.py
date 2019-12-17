@@ -814,6 +814,22 @@ class DecompiledProgramBase:
         t.start()
         return t
 
+
+    def read_token(self):
+        '''Reads a token from the programs output'''
+        s = ''
+        while True:
+            c = self._output.get()
+            if c in [10, 32]:
+                if s:
+                    return s
+            else:
+                if c < 32 or c > 127:
+                    assert not s
+                    # non-ASCII values are returned as-is
+                    return c
+                s += chr(c)
+
     def read_line(self):
         '''Reads an ASCII line from the programs output'''
         s = ''
@@ -822,6 +838,7 @@ class DecompiledProgramBase:
             if c == 10:
                 return s
             if c < 32 or c > 127:
+                assert not s
                 return "<%d>" % c
             s += chr(c)
 
