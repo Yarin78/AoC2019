@@ -502,7 +502,10 @@ class Decompiler:
         # Initial memory
 
         lines.append('')
-        lines.append('    code = [%s]' % str(code))
+        lines.append('    code = [')
+        for i in range(0, len(code), 16):
+            lines.append('        ' + ''.join(map(lambda x: '%d,' % x, code[i:min(len(code), i+16)])))
+        lines.append('    ]')
 
         lines.append('')
         lines.append('')
@@ -883,7 +886,7 @@ def main(config=None, no_output=False, patch=None):
     decompiler.decompile()
 
     if not no_output:
-        for line in decompiler.generate_code(code):
+        for line in decompiler.generate_code(mem):
             print(line)
 
 if __name__ == "__main__":
