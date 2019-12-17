@@ -124,7 +124,7 @@ class Program(object):
         self.init_io(input, output)
         return self._run(steps)
 
-    def run_until_halted(self, start=0):
+    def run_until_halted(self):
         try:
             while True:
                 self.step()
@@ -166,6 +166,21 @@ class Program(object):
             return None
         return self._output.get()
 
+    def read_line(self):
+        s = ''
+        while not self.halted and not self.blocked_on_input:
+            while not self._output.empty():
+                c = self._output.get()
+                if c == 10:
+                    return s
+                s += chr(c)
+            self.step()
+        return None
+
+    def write_line(self, line):
+        for c in line:
+            self._input.put(ord(c))
+        self._input.put(10)
 
     def step(self):
         assert self.input and self.output
