@@ -77,9 +77,9 @@ class Node:
             elif opcode == OPCODE_OUT:
                 code = 'self.output(%s)' % param_str[0]
             elif opcode == OPCODE_LESS_THAN:
-                code = '%s = 1 if %s < %s else 0' % (param_str[2], param_str[0], param_str[1])
+                code = '%s = int(%s < %s)' % (param_str[2], param_str[0], param_str[1])
             elif opcode == OPCODE_EQUALS:
-                code = '%s = 1 if %s == %s else 0' % (param_str[2], param_str[0], param_str[1])
+                code = '%s = int(%s == %s)' % (param_str[2], param_str[0], param_str[1])
             elif opcode == OPCODE_ADD_BP:
                 code = ''
             elif opcode == OPCODE_HALT:
