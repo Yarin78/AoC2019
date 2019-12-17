@@ -135,7 +135,7 @@ class Node:
                             # Depends on something that we can evaluate
                             code = ['if %s:' % condition, '    %s' % code]
             else:
-                code = '?'
+                code = ''
             if isinstance(code, list):
                 codes.extend(code)
             else:
@@ -579,6 +579,8 @@ class Decompiler:
 
             if opcode not in self.prog.opcodes:
                 logging.warning('Unknown opcode at %d' % ip)
+                # func_addr.add(ip)  # Patch if everything is one function
+                # heapq.heappush(ipq, ip+1)
                 continue
 
             # Mark the memory of this instruction as belonging to this function
