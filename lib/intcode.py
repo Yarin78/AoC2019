@@ -33,7 +33,10 @@ class Program(object):
     opcodes = {}
 
     def __init__(self, code, prog_id=0):
-        self.factory_settings = list(map(lambda x: int(x), code.strip().split(',')))
+        if isinstance(code, list):
+            self.factory_settings = code[:]
+        else:
+            self.factory_settings = list(map(lambda x: int(x), code.strip().split(',')))
         self.reset()
         self.prog_id = prog_id
         self._input = None
@@ -173,6 +176,8 @@ class Program(object):
                 c = self._output.get()
                 if c == 10:
                     return s
+                if c < 32 or c > 127:
+                    return "<%d>" % c
                 s += chr(c)
             self.step()
         return None
@@ -475,20 +480,32 @@ class ReturnSink(object):
 
 class StdoutSink(object):
     def put(self, x):
-        sys.stdout.write(str(x) + '\n')
+        if x >= 32 and x < 127:
+            sys.stdout.write(chr(x))
+        elif x == 10:
+            sys.stdout.write('\n')
+        else:
+            sys.stdout.write(str(x) + '\n')
 
 class StdinSource(object):
-    def get(self):
-        s = sys.stdin.readline()
-        if s == '':
-            raise MachineBlockedException()
-        return int(s)
+    def __init__(self):
+        self._queue = Queue()
+
+    def get(self, nowait=False):
+        if self._queue.empty():
+            s = input()
+            if s == '':
+                if nowait:
+                    raise Empty()
+                else:
+                    raise MachineBlockedException()
+            for c in s:
+                self._queue.put(ord(c))
+            self._queue.put(10)
+        return self._queue.get()
 
     def get_nowait(self):
-        s = sys.stdin.readline()
-        if s == '':
-            raise Empty()
-        return int(s)
+        return self.get(True)
 
 class JoinedSource(object):
     '''Gets input from multiple sources.'''
@@ -529,6 +546,8 @@ class PythonProgram:
     pass
 
 if __name__ == "__main__":
-    adder_code = "3,0,1001,0,1,0,4,0,99"
-    prog = Program(adder_code)
+    SHOW_PROGRESS = False
+    with open(sys.argv[1], "r") as f:
+        code = f.readline()
+    prog = Program(code)
     prog.run(input=StdinSource(), output=StdoutSink())

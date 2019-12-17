@@ -12,6 +12,7 @@ lines = data.strip().split('\n')
 prog = Program(data)
 prog.mem[0] = 2
 prog.init_io(Queue(), Queue())
+t = prog.start_async()
 
 m = []
 s = prog.read_line()
@@ -115,3 +116,5 @@ for line in data:
 while not prog.halted or not prog._output.empty():
     s = prog.read_line()
     print(s)
+
+t.join()

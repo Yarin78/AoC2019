@@ -476,9 +476,6 @@ class Decompiler:
         lines.append('')
         lines.append('class DecompiledProgram(DecompiledProgramBase):')
         lines.append('')
-        #lines.append('    def __init__(self, input, output):')
-        #lines.append('        self.input = input')
-        #lines.append('        self.output = output')
 
         if self.config['global_variables']:
             for addr, name in self.config['global_variables'].items():
@@ -505,7 +502,14 @@ class Decompiler:
         # Initial memory
 
         lines.append('')
-        lines.append('    code = "%s"' % code.strip())
+        lines.append('    code = [%s]' % str(code))
+
+        lines.append('')
+        lines.append('')
+        lines.append('if __name__ == "__main__":')
+        lines.append('      prog = DecompiledProgram()')
+        lines.append('      prog.init_io()')
+        lines.append('      prog.run_until_halted()')
 
         return lines
 
@@ -772,10 +776,9 @@ def fixed_value(opcode, p, m):
 
 class DecompiledProgramBase:
     def __init__(self):
-        mem = list(map(lambda x: int(x), self.code.strip().split(',')))
         self.mem = defaultdict(int)
-        for i in range(len(mem)):
-            self.mem[i] = mem[i]
+        for i in range(len(self.code)):
+            self.mem[i] = self.code[i]
 
     def init_io(self, input=None, output=None):
         if input is None:
@@ -811,6 +814,22 @@ class DecompiledProgramBase:
         t.start()
         return t
 
+    def read_line(self):
+        '''Reads an ASCII line from the programs output'''
+        s = ''
+        while True:
+            c = self._output.get()
+            if c == 10:
+                return s
+            if c < 32 or c > 127:
+                return "<%d>" % c
+            s += chr(c)
+
+    def write_line(self, line):
+        '''Writes an ASCII line to the programs input'''
+        for c in line:
+            self._input.put(ord(c))
+        self._input.put(10)
 
 def load_config(config_file):
     with open(config_file, 'r') as f:
@@ -828,12 +847,19 @@ def load_config(config_file):
 
 @argh.arg('--config', help='Config file')
 @argh.arg('--no-output', help='Just analyze, no output', action='store_true')
-def main(config=None, no_output=False):
+@argh.arg('--patch', nargs='+')
+def main(config=None, no_output=False, patch=None):
     if config:
         config = load_config(config)
 
     code = sys.stdin.readline()
-    prog = Program(code)
+    mem = list(map(lambda x: int(x), code.strip().split(',')))
+    if patch:
+        for p in patch:
+            (addr, value) = p.split(':')
+            mem[int(addr)] = int(value)
+
+    prog = Program(mem)
     decompiler = Decompiler(prog, config)
     decompiler.decompile()
 

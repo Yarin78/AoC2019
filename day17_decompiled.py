@@ -7,11 +7,12 @@ from lib.graph import *
 from lib.geo2d import *
 from lib.intcode import *
 from aocd import data, submit
+from day17_generated import DecompiledProgram
 
 lines = data.strip().split('\n')
-prog = Program(data)
-prog.mem[0] = 2
+prog = DecompiledProgram()
 prog.init_io(Queue(), Queue())
+t = prog.start_async()
 
 m = []
 s = prog.read_line()
@@ -111,7 +112,10 @@ for alen in range(1,10):
 
 for line in data:
     prog.write_line(line)
+try:
+    while t.is_alive() or not prog._output.empty():
+        print(prog.read_line())
+except MachineHaltedException:
+    pass
 
-while not prog.halted or not prog._output.empty():
-    s = prog.read_line()
-    print(s)
+t.join()
