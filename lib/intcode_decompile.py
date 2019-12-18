@@ -504,7 +504,9 @@ class Decompiler:
         lines.append('')
         lines.append('    code = [')
         for i in range(0, len(code), 16):
-            lines.append('        ' + ''.join(map(lambda x: '%d,' % x, code[i:min(len(code), i+16)])))
+            code_range = code[i:min(len(code), i+16)]
+            code_ascii = ''.join([chr(c) if c >= 32 and c < 127 else '.' for c in code_range])
+            lines.append('        %-70s  # %s' % (''.join(map(lambda x: '%d,' % x, code_range)), code_ascii))
         lines.append('    ]')
 
         lines.append('')
