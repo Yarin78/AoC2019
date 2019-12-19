@@ -250,6 +250,10 @@ class Function:
         if self.frame_size > MAX_FRAME_SIZE or self.frame_size == 0:
             return 'self.%s()' % self.name()
         call_params = ', '.join(['q%d' % x for x in range(min(num_params_set, self.frame_size - 1))])
+        if self.frame_size == 1:
+            return 'self.%s(%s)' % (ret_params, self.name(), call_params)
+        if not self.decompiler.config['return_all']:
+            return 'q0 = self.%s(%s)' % (self.name(), call_params)
         ret_params = ', '.join(['q%d' % x for x in range(self.frame_size - 1)])
         return '(%s) = self.%s(%s)' % (ret_params, self.name(), call_params)
 
@@ -262,6 +266,10 @@ class Function:
     def return_statement(self):
         if self.frame_size > MAX_FRAME_SIZE or self.frame_size == 0:
             return 'return'
+        if self.frame_size == 1:
+            return 'return'
+        if not self.decompiler.config['return_all']:
+            return 'return p0'
         params = ', '.join(['p%d' % x for x in range(self.frame_size - 1)])
         return 'return (%s)' % params
 
@@ -433,6 +441,7 @@ class Decompiler:
 
         addr = start_addr
         cur_line = None
+        cur_ascii = ''
         cnt = 0
 
         while addr < end_addr:
@@ -454,13 +463,17 @@ class Decompiler:
                     lines.append('    # %4d: %s' % (opcode_addr, asm))
             else:
                 if cnt > 10:
-                    lines.append(cur_line)
+                    lines.append('%-70s%s' % (cur_line, cur_ascii))
                     cur_line = None
+                    cur_ascii = ''
                     cnt = 0
+                v = self.prog.mem[addr]
                 if cur_line is None:
-                    cur_line = '    # %4d: DB %d' % (addr, self.prog.mem[addr])
+                    cur_line = '    # %4d: DB %d' % (addr, v)
+                    cur_ascii = chr(v) if v >= 32 and v < 127 else '.'
                 else:
-                    cur_line += ', %d' % self.prog.mem[addr]
+                    cur_line += ', %d' % v
+                    cur_ascii += chr(v) if v >= 32 and v < 127 else '.'
                 cnt += 1
                 addr += 1
 

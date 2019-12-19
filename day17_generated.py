@@ -4,696 +4,363 @@ from lib.intcode_decompile import *
 
 class DecompiledProgram(DecompiledProgramBase):
 
+    video_feed = 1
 
     @with_goto
     def func0(self):
-        #    0: MUL (330), (331), (332)
         # This instruction may get modified
         self.mem[332] = self.mem[330] * self.mem[331]
-        #    4: ADD_BP #3072
-        #    6: ADD #1182, #0, (16)
         self.mem[16] = 1182
-        #   10: ADD #1481, #0, (24)
         self.mem[24] = 1481
-        #   14: MUL #1, (0), (570)
         label .lbl_14
-        self.mem[570] = self.mem[self.mem[16]]
-        #   18: JMPF (570), #36
+        tmp = self.mem[self.mem[16]]
         label .lbl_18
-        if not self.mem[570]:
+        if not tmp:
             goto .lbl_36
-        #   21: MUL (571), #1, (0)
         self.mem[self.mem[24]] = self.mem[571]
-        #   25: ADD (570), #-1, (570)
-        self.mem[570] -= 1
-        #   29: ADD (24), #1, (24)
+        tmp -= 1
         self.mem[24] += 1
-        #   33: JMPT #1, #18
         pass # 1
         goto .lbl_18
-        #   36: EQ (571), #0, (571)
         label .lbl_36
         self.mem[571] = int(self.mem[571] == 0)
-        #   40: ADD (16), #1, (16)
         self.mem[16] += 1
-        #   44: EQ (16), #1481, (570)
-        self.mem[570] = int(self.mem[16] == 1481)
-        #   48: JMPF (570), #14
-        if not self.mem[570]:
+        tmp = int(self.mem[16] == 1481)
+        if not tmp:
             goto .lbl_14
-        #   51: ADD #0, #58, (BP+0)
-        #   55: JMPT #1, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786()
-        #   58: JMPF (332), #62
+        q0 = self.show_map()
         if not self.mem[332]:
             goto .lbl_62
-        #   61: HALT 
         raise MachineHaltedException()
-        #   62: ADD #333, #0, (BP+1)
         label .lbl_62
         q0 = 333
-        #   66: MUL #1, #73, (BP+0)
-        #   70: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #   73: MUL #1, #0, (572)
+        q0 = self.output_string(q0)
         self.mem[572] = 0
-        #   77: ADD #0, #0, (573)
         self.mem[573] = 0
-        #   81: IN (574)
         label .lbl_81
         self.mem[574] = self.input()
-        #   83: ADD #1, (573), (573)
         self.mem[573] += 1
-        #   87: LT (574), #65, (570)
-        self.mem[570] = int(self.mem[574] < 65)
-        #   91: JMPT (570), #151
-        if self.mem[570]:
+        tmp = int(self.mem[574] < 65)
+        if tmp:
             goto .lbl_151
-        #   94: LT #67, (574), (570)
-        self.mem[570] = int(67 < self.mem[574])
-        #   98: JMPT (570), #151
-        if self.mem[570]:
+        tmp = int(67 < self.mem[574])
+        if tmp:
             goto .lbl_151
-        #  101: ADD (574), #-64, (574)
         self.mem[574] -= 64
-        #  105: MUL (574), #-1, (574)
         self.mem[574] = -self.mem[574]
-        #  109: ADD (572), #1, (572)
         self.mem[572] += 1
-        #  113: LT (572), #11, (570)
-        self.mem[570] = int(self.mem[572] < 11)
-        #  117: JMPF (570), #165
-        if not self.mem[570]:
+        tmp = int(self.mem[572] < 11)
+        if not tmp:
             goto .lbl_165
-        #  120: ADD #1182, (572), (127)
         self.mem[127] = 1182 + self.mem[572]
-        #  124: ADD #0, (574), (0)
         self.mem[self.mem[127]] = self.mem[574]
-        #  128: IN (574)
         self.mem[574] = self.input()
-        #  130: ADD #1, (573), (573)
         self.mem[573] += 1
-        #  134: EQ (574), #10, (570)
-        self.mem[570] = int(self.mem[574] == 10)
-        #  138: JMPT (570), #189
-        if self.mem[570]:
+        tmp = int(self.mem[574] == 10)
+        if tmp:
             goto .lbl_189
-        #  141: EQ (574), #44, (570)
-        self.mem[570] = int(self.mem[574] == 44)
-        #  145: JMPF (570), #158
-        if not self.mem[570]:
+        tmp = int(self.mem[574] == 44)
+        if not tmp:
             goto .lbl_158
-        #  148: JMPF #0, #81
         pass # 1
         goto .lbl_81
-        #  151: MUL #1, #340, (BP+1)
         label .lbl_151
         q0 = 340
-        #  155: JMPT #1, #177
         pass # 1
         goto .lbl_177
-        #  158: ADD #0, #477, (BP+1)
         label .lbl_158
         q0 = 477
-        #  162: JMPT #1, #177
         pass # 1
         goto .lbl_177
-        #  165: MUL #1, #514, (BP+1)
         label .lbl_165
         q0 = 514
-        #  169: MUL #1, #176, (BP+0)
-        #  173: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  176: HALT 
+        q0 = self.output_string(q0)
         raise MachineHaltedException()
-        #  177: ADD #0, #184, (BP+0)
         label .lbl_177
-        #  181: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  184: OUT (574)
+        q0 = self.output_string(q0)
         self.output(self.mem[574])
-        #  186: OUT #10
         self.output(10)
-        #  188: HALT 
         raise MachineHaltedException()
-        #  189: LT (573), #22, (570)
         label .lbl_189
-        self.mem[570] = int(self.mem[573] < 22)
-        #  193: JMPF (570), #165
-        if not self.mem[570]:
+        tmp = int(self.mem[573] < 22)
+        if not tmp:
             goto .lbl_165
-        #  196: MUL (572), #1, (1182)
         self.mem[1182] = self.mem[572]
-        #  200: ADD #0, #375, (BP+1)
-        q0 = 375
-        #  204: ADD #211, #0, (BP+0)
-        #  208: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  211: ADD #1182, #11, (BP+1)
-        q0 = 1193
-        #  215: MUL #222, #1, (BP+0)
-        #  219: JMPF #0, #979
-        (q0, q1, q2, q3, q4) = self.func979(q0)
-        #  222: MUL #1, #388, (BP+1)
-        q0 = 388
-        #  226: MUL #1, #233, (BP+0)
-        #  230: JMPF #0, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  233: ADD #1182, #22, (BP+1)
-        q0 = 1204
-        #  237: ADD #0, #244, (BP+0)
-        #  241: JMPF #0, #979
-        (q0, q1, q2, q3, q4) = self.func979(q0)
-        #  244: MUL #401, #1, (BP+1)
-        q0 = 401
-        #  248: MUL #1, #255, (BP+0)
-        #  252: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  255: ADD #1182, #33, (BP+1)
-        q0 = 1215
-        #  259: ADD #266, #0, (BP+0)
-        #  263: JMPF #0, #979
-        (q0, q1, q2, q3, q4) = self.func979(q0)
-        #  266: ADD #414, #0, (BP+1)
-        q0 = 414
-        #  270: MUL #277, #1, (BP+0)
-        #  274: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        #  277: IN (575)
-        self.mem[575] = self.input()
-        #  279: EQ (575), #89, (570)
-        self.mem[570] = int(self.mem[575] == 89)
-        #  283: EQ (575), #121, (575)
-        self.mem[575] = int(self.mem[575] == 121)
-        #  287: ADD (575), (570), (575)
-        self.mem[575] += self.mem[570]
-        #  291: IN (574)
-        label .lbl_291
-        self.mem[574] = self.input()
-        #  293: EQ (574), #10, (570)
-        self.mem[570] = int(self.mem[574] == 10)
-        #  297: JMPF (570), #291
-        if not self.mem[570]:
-            goto .lbl_291
-        #  300: OUT #10
+        self.output_string(375)  # Function A
+        self.input_string(1193)
+        self.output_string(388)  # Function B
+        self.input_string(1204)
+        self.output_string(401)  # Function C
+        self.input_string(1215)
+        self.output_string(414)  # Continuous video feed?
+        self.video_feed = self.input()
+        self.video_feed = int(self.video_feed == 89 or self.video_feed == 121)  # y or Y
+        while True:
+            if self.input() == 10:
+                break
         self.output(10)
-        #  302: MUL #1182, #1, (BP+1)
-        q0 = 1182
-        #  306: MUL #313, #1, (BP+0)
-        #  310: JMPT #1, #622
-        (q0, q1, q2, q3) = self.func622(q0)
-        #  313: JMPT (575), #327
-        if self.mem[575]:
-            goto .lbl_327
-        #  316: ADD #1, #0, (575)
-        self.mem[575] = 1
-        #  320: ADD #0, #327, (BP+0)
-        #  324: JMPT #1, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786(q0)
-        #  327: OUT (438)
-        label .lbl_327
+        self.func622(1182)
+        if not self.video_feed:
+            self.video_feed = 1
+            self.show_map()
         self.output(self.mem[438])
-        #  329: HALT 
         raise MachineHaltedException()
 
-    #  330: DB 0, 1, 1, 6, 77, 97, 105, 110, 58, 10, 33
-    #  341: DB 10, 69, 120, 112, 101, 99, 116, 101, 100, 32, 102
-    #  352: DB 117, 110, 99, 116, 105, 111, 110, 32, 110, 97, 109
-    #  363: DB 101, 32, 98, 117, 116, 32, 103, 111, 116, 58, 32
-    #  374: DB 0, 12, 70, 117, 110, 99, 116, 105, 111, 110, 32
-    #  385: DB 65, 58, 10, 12, 70, 117, 110, 99, 116, 105, 111
-    #  396: DB 110, 32, 66, 58, 10, 12, 70, 117, 110, 99, 116
-    #  407: DB 105, 111, 110, 32, 67, 58, 10, 23, 67, 111, 110
-    #  418: DB 116, 105, 110, 117, 111, 117, 115, 32, 118, 105, 100
-    #  429: DB 101, 111, 32, 102, 101, 101, 100, 63, 10, 0, 37
-    #  440: DB 10, 69, 120, 112, 101, 99, 116, 101, 100, 32, 82
-    #  451: DB 44, 32, 76, 44, 32, 111, 114, 32, 100, 105, 115
-    #  462: DB 116, 97, 110, 99, 101, 32, 98, 117, 116, 32, 103
-    #  473: DB 111, 116, 58, 32, 36, 10, 69, 120, 112, 101, 99
-    #  484: DB 116, 101, 100, 32, 99, 111, 109, 109, 97, 32, 111
-    #  495: DB 114, 32, 110, 101, 119, 108, 105, 110, 101, 32, 98
-    #  506: DB 117, 116, 32, 103, 111, 116, 58, 32, 43, 10, 68
-    #  517: DB 101, 102, 105, 110, 105, 116, 105, 111, 110, 115, 32
-    #  528: DB 109, 97, 121, 32, 98, 101, 32, 97, 116, 32, 109
-    #  539: DB 111, 115, 116, 32, 50, 48, 32, 99, 104, 97, 114
-    #  550: DB 97, 99, 116, 101, 114, 115, 33, 10, 94, 62, 118
-    #  561: DB 60, 0, 1, 0, -1, -1, 0, 1, 0, 0, 0
+    #  330: DB 0, 1, 1, 6, 77, 97, 105, 110, 58, 10, 33               ....Main:.!
+    #  341: DB 10, 69, 120, 112, 101, 99, 116, 101, 100, 32, 102      .Expected f
+    #  352: DB 117, 110, 99, 116, 105, 111, 110, 32, 110, 97, 109     unction nam
+    #  363: DB 101, 32, 98, 117, 116, 32, 103, 111, 116, 58, 32       e but got:
+    #  374: DB 0, 12, 70, 117, 110, 99, 116, 105, 111, 110, 32        ..Function
+    #  385: DB 65, 58, 10, 12, 70, 117, 110, 99, 116, 105, 111        A:..Functio
+    #  396: DB 110, 32, 66, 58, 10, 12, 70, 117, 110, 99, 116         n B:..Funct
+    #  407: DB 105, 111, 110, 32, 67, 58, 10, 23, 67, 111, 110        ion C:..Con
+    #  418: DB 116, 105, 110, 117, 111, 117, 115, 32, 118, 105, 100   tinuous vid
+    #  429: DB 101, 111, 32, 102, 101, 101, 100, 63, 10, 0, 37        eo feed?..%
+    #  440: DB 10, 69, 120, 112, 101, 99, 116, 101, 100, 32, 82       .Expected R
+    #  451: DB 44, 32, 76, 44, 32, 111, 114, 32, 100, 105, 115        , L, or dis
+    #  462: DB 116, 97, 110, 99, 101, 32, 98, 117, 116, 32, 103       tance but g
+    #  473: DB 111, 116, 58, 32, 36, 10, 69, 120, 112, 101, 99        ot: $.Expec
+    #  484: DB 116, 101, 100, 32, 99, 111, 109, 109, 97, 32, 111      ted comma o
+    #  495: DB 114, 32, 110, 101, 119, 108, 105, 110, 101, 32, 98     r newline b
+    #  506: DB 117, 116, 32, 103, 111, 116, 58, 32, 43, 10, 68        ut got: +.D
+    #  517: DB 101, 102, 105, 110, 105, 116, 105, 111, 110, 115, 32   efinitions
+    #  528: DB 109, 97, 121, 32, 98, 101, 32, 97, 116, 32, 109        may be at m
+    #  539: DB 111, 115, 116, 32, 50, 48, 32, 99, 104, 97, 114        ost 20 char
+    #  550: DB 97, 99, 116, 101, 114, 115, 33, 10, 94, 62, 118        acters!.^>v
+    #  561: DB 60, 0, 1, 0, -1, -1, 0, 1, 0, 0, 0                     <..........
     #  572: DB 0, 0, 0, 1, 28, 0, 0
 
     @with_goto
-    def func579(self, p0=0, p1=0, p2=0):
-        #  579: ADD_BP #4
-        #  581: MUL (BP+-3), #1, (587)
-        self.mem[587] = p0
-        #  585: ADD #0, (0), (BP+-1)
-        p2 = self.mem[self.mem[587]]
-        #  589: ADD #1, (BP+-3), (BP+-3)
+    def output_string(self, p0):
+        p2 = self.mem[p0]
         p0 += 1
-        #  593: ADD #0, #0, (BP+-2)
         p1 = 0
-        #  597: EQ (BP+-2), (BP+-1), (570)
-        label .lbl_597
-        self.mem[570] = int(p1 == p2)
-        #  601: JMPT (570), #617
-        if self.mem[570]:
-            goto .lbl_617
-        #  604: ADD (BP+-3), (BP+-2), (609)
-        self.mem[609] = p0 + p1
-        #  608: OUT (0)
-        self.output(self.mem[self.mem[609]])
-        #  610: ADD (BP+-2), #1, (BP+-2)
-        p1 += 1
-        #  614: JMPF #0, #597
-        pass # 1
-        goto .lbl_597
-        #  617: ADD_BP #-4
-        label .lbl_617
-        #  619: JMPF #0, (BP+0)
-        pass # 0
-        return (p0, p1, p2)
+        while p1 != p2:
+            self.output(self.mem[p0 + p1])
+            p1 += 1
+        return p0
 
     @with_goto
     def func622(self, p0=0, p1=0, p2=0, p3=0):
-        #  622: ADD_BP #5
-        #  624: MUL (BP+-4), #1, (630)
         self.mem[630] = p0
-        #  628: MUL #1, (0), (BP+-2)
         p2 = self.mem[self.mem[630]]
-        #  632: ADD #1, (BP+-4), (BP+-4)
         p0 += 1
-        #  636: MUL #0, #1, (BP+-3)
         p1 = 0
-        #  640: EQ (BP+-3), (BP+-2), (570)
         label .lbl_640
-        self.mem[570] = int(p1 == p2)
-        #  644: JMPT (570), #781
-        if self.mem[570]:
+        tmp = int(p1 == p2)
+        if tmp:
             goto .lbl_781
-        #  647: ADD (BP+-4), (BP+-3), (652)
         self.mem[652] = p0 + p1
-        #  651: ADD (0), #0, (BP+-1)
         p3 = self.mem[self.mem[652]]
-        #  655: EQ (BP+-1), #-4, (570)
-        self.mem[570] = int(p3 == -4)
-        #  659: JMPT (570), #709
-        if self.mem[570]:
+        tmp = int(p3 == -4)
+        if tmp:
             goto .lbl_709
-        #  662: EQ (BP+-1), #-5, (570)
-        self.mem[570] = int(p3 == -5)
-        #  666: JMPT (570), #734
-        if self.mem[570]:
+        tmp = int(p3 == -5)
+        if tmp:
             goto .lbl_734
-        #  669: LT (BP+-1), #0, (570)
-        self.mem[570] = int(p3 < 0)
-        #  673: JMPT (570), #759
-        if self.mem[570]:
+        tmp = int(p3 < 0)
+        if tmp:
             goto .lbl_759
-        #  676: JMPF (BP+-1), #774
         label .lbl_676
         if not p3:
             goto .lbl_774
-        #  679: ADD (578), #562, (684)
         self.mem[684] = self.mem[578] + 562
-        #  683: ADD (0), (576), (576)
         self.mem[576] += self.mem[self.mem[684]]
-        #  687: ADD (578), #566, (692)
         self.mem[692] = self.mem[578] + 566
-        #  691: ADD (0), (577), (577)
         self.mem[577] += self.mem[self.mem[692]]
-        #  695: ADD #0, #702, (BP+0)
-        #  699: JMPT #1, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786()
-        #  702: ADD (BP+-1), #-1, (BP+-1)
+        q0 = self.show_map()
         p3 -= 1
-        #  706: JMPF #0, #676
         pass # 1
         goto .lbl_676
-        #  709: ADD (578), #1, (578)
         label .lbl_709
         self.mem[578] += 1
-        #  713: EQ (578), #4, (570)
-        self.mem[570] = int(self.mem[578] == 4)
-        #  717: JMPF (570), #724
-        if not self.mem[570]:
+        tmp = int(self.mem[578] == 4)
+        if not tmp:
             goto .lbl_724
-        #  720: ADD (578), #-4, (578)
         self.mem[578] -= 4
-        #  724: MUL #731, #1, (BP+0)
         label .lbl_724
-        #  728: JMPT #1, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786()
-        #  731: JMPF #0, #774
+        q0 = self.show_map()
         pass # 1
         goto .lbl_774
-        #  734: ADD (578), #-1, (578)
         label .lbl_734
         self.mem[578] -= 1
-        #  738: EQ (578), #-1, (570)
-        self.mem[570] = int(self.mem[578] == -1)
-        #  742: JMPF (570), #749
-        if not self.mem[570]:
+        tmp = int(self.mem[578] == -1)
+        if not tmp:
             goto .lbl_749
-        #  745: ADD (578), #4, (578)
         self.mem[578] += 4
-        #  749: MUL #1, #756, (BP+0)
         label .lbl_749
-        #  753: JMPT #1, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786()
-        #  756: JMPF #0, #774
+        q0 = self.show_map()
         pass # 1
         goto .lbl_774
-        #  759: MUL (BP+-1), #-11, (BP+1)
         label .lbl_759
         q0 = p3 * -11
-        #  763: ADD #1182, (BP+1), (BP+1)
         q0 += 1182
-        #  767: ADD #0, #774, (BP+0)
-        #  771: JMPF #0, #622
-        (q0, q1, q2, q3) = self.func622(q0)
-        #  774: ADD (BP+-3), #1, (BP+-3)
+        q0 = self.func622(q0)
         label .lbl_774
         p1 += 1
-        #  778: JMPF #0, #640
         pass # 1
         goto .lbl_640
-        #  781: ADD_BP #-5
         label .lbl_781
-        #  783: JMPF #0, (BP+0)
         pass # 0
-        return (p0, p1, p2, p3)
+        return p0
 
     @with_goto
-    def func786(self, p0=0, p1=0, p2=0, p3=0, p4=0, p5=0):
-        #  786: ADD_BP #7
-        #  788: JMPT (575), #802
-        if self.mem[575]:
+    def show_map(self):
+        if self.video_feed:
             goto .lbl_802
-        #  791: MUL #1, (576), (BP+-6)
-        p0 = self.mem[576]
-        #  795: MUL #1, (577), (BP+-5)
-        p1 = self.mem[577]
-        #  799: JMPT #1, #814
-        pass # 1
+        p0 = self.mem[576]  # x
+        p1 = self.mem[577]  # y
         goto .lbl_814
-        #  802: ADD #0, #0, (BP+-1)
         label .lbl_802
         p5 = 0
-        #  806: ADD #0, #0, (BP+-5)
         p1 = 0
-        #  810: ADD #0, #0, (BP+-6)
-        label .lbl_810
+        label .new_line
         p0 = 0
-        #  814: EQ (BP+-6), (576), (BP+-2)
         label .lbl_814
-        p4 = int(p0 == self.mem[576])
-        #  818: EQ (BP+-5), (577), (570)
-        self.mem[570] = int(p1 == self.mem[577])
-        #  822: MUL (570), (BP+-2), (BP+-2)
-        p4 *= self.mem[570]
-        #  826: MUL (BP+-5), #37, (BP+-3)
-        p3 = p1 * 37
-        #  830: ADD (BP+-6), (BP+-3), (BP+-3)
-        p3 += p0
-        #  834: ADD #1481, (BP+-3), (BP+-3)
-        p3 += 1481
-        #  838: ADD (BP+-3), #0, (843)
-        self.mem[843] = p3
-        #  842: JMPT (0), #863
-        if self.mem[self.mem[843]]:
-            goto .lbl_863
-        #  845: MUL (BP+-2), #42, (BP+-4)
-        p2 = p4 * 42
-        #  849: ADD #46, (BP+-4), (BP+-4)
-        p2 += 46
-        #  853: JMPF (BP+-2), #924
-        if not p4:
-            goto .lbl_924
-        #  856: ADD #1, #0, (BP+-1)
-        p5 = 1
-        #  860: JMPF #0, #924
-        pass # 1
-        goto .lbl_924
-        #  863: JMPT (BP+-2), #873
-        label .lbl_863
-        if p4:
-            goto .lbl_873
-        #  866: MUL #1, #35, (BP+-4)
-        p2 = 35
-        #  870: JMPF #0, #924
-        pass # 1
-        goto .lbl_924
-        #  873: ADD (BP+-3), #0, (878)
-        label .lbl_873
-        self.mem[878] = p3
-        #  877: EQ (0), #1, (570)
-        self.mem[570] = int(self.mem[self.mem[878]] == 1)
-        #  881: JMPF (570), #916
-        if not self.mem[570]:
-            goto .lbl_916
-        #  884: ADD (374), #1, (374)
-        self.mem[374] += 1
-        #  888: ADD #0, (BP+-3), (895)
-        self.mem[895] = p3
-        #  892: MUL #2, #1, (0)
-        self.mem[self.mem[895]] = 2
-        #  896: MUL #1, (BP+-3), (902)
-        self.mem[902] = p3
-        #  900: ADD (438), #0, (438)
-        self.mem[438] += self.mem[902]
-        #  904: MUL (BP+-6), (BP+-5), (570)
-        self.mem[570] = p0 * p1
-        #  908: ADD (570), (374), (570)
-        self.mem[570] += self.mem[374]
-        #  912: ADD (570), (438), (438)
-        self.mem[438] += self.mem[570]
-        #  916: ADD (578), #558, (921)
-        label .lbl_916
-        self.mem[921] = self.mem[578] + 558
-        #  920: MUL (0), #1, (BP+-4)
-        p2 = self.mem[self.mem[921]]
-        #  924: JMPF (575), #959
-        label .lbl_924
-        if not self.mem[575]:
-            goto .lbl_959
-        #  927: OUT (BP+-4)
-        self.output(p2)
-        #  929: ADD #1, (BP+-6), (BP+-6)
-        p0 += 1
-        #  933: EQ (BP+-6), #37, (570)
-        self.mem[570] = int(p0 == 37)
-        #  937: JMPF (570), #814
-        if not self.mem[570]:
-            goto .lbl_814
-        #  940: OUT #10
-        self.output(10)
-        #  942: ADD #1, (BP+-5), (BP+-5)
-        p1 += 1
-        #  946: EQ (BP+-5), #43, (570)
-        self.mem[570] = int(p1 == 43)
-        #  950: JMPF (570), #810
-        if not self.mem[570]:
-            goto .lbl_810
-        #  953: OUT #10
-        self.output(10)
-        #  955: JMPF (BP+-1), #974
-        if not p5:
-            goto .lbl_974
-        #  958: HALT 
-        raise MachineHaltedException()
-        #  959: JMPF (BP+-1), #974
-        label .lbl_959
-        if not p5:
-            goto .lbl_974
-        #  962: ADD #0, #1, (575)
-        self.mem[575] = 1
-        #  966: ADD #0, #973, (BP+0)
-        #  970: JMPF #0, #786
-        (q0, q1, q2, q3, q4, q5) = self.func786()
-        #  973: HALT 
-        raise MachineHaltedException()
-        #  974: ADD_BP #-7
-        label .lbl_974
-        #  976: JMPT #1, (BP+0)
-        pass # 0
-        return (p0, p1, p2, p3, p4, p5)
+        p4 = int(p0 == self.mem[576]) * int(p1 == self.mem[577])
+        p3 = p1 * 37 + p0 + 1481
+        if not self.mem[p3]:
+            p2 = p4 * 42 + 46
+            if p4:
+                p5 = 1
+        else:
+            if not p4:
+                p2 = 35
+            else:
+                if self.mem[p3] == 1:
+                    self.mem[374] += 1
+                    self.mem[p3] = 2
+                    self.mem[902] = p3
+                    self.mem[438] += self.mem[902] + p0 * p1 + self.mem[374]
+                p2 = self.mem[self.mem[578] + 558]
+
+        if self.video_feed:
+            self.output(p2)
+            p0 += 1
+            if p0 != 37:
+                goto .lbl_814
+            self.output(10)
+            p1 += 1
+            if p1 != 43:
+                goto .new_line
+            self.output(10)
+            if p5:
+                raise MachineHaltedException()
+        if p5:
+            self.video_feed = 1
+            q0 = self.show_map()
+            raise MachineHaltedException()
+
+        return p0
 
     @with_goto
-    def func979(self, p0=0, p1=0, p2=0, p3=0, p4=0):
-        #  979: ADD_BP #6
-        #  981: ADD #0, #0, (BP+-4)
+    def input_string(self, p0=0, p1=0, p2=0, p3=0, p4=0):
         p1 = 0
-        #  985: ADD #0, #0, (BP+-3)
-        p2 = 0
-        #  989: IN (BP+-2)
+        p2 = 0  # num characters read
         label .lbl_989
-        p3 = self.input()
-        #  991: ADD #1, (BP+-3), (BP+-3)
+        p3 = self.input()  # p3 last character
         p2 += 1
-        #  995: EQ (BP+-2), #82, (BP+-1)
-        p4 = int(p3 == 82)
-        #  999: JMPT (BP+-1), #1030
-        if p4:
+        if p3 == 82: # R
             goto .lbl_1030
-        # 1002: EQ (BP+-2), #76, (BP+-1)
-        p4 = int(p3 == 76)
-        # 1006: JMPT (BP+-1), #1037
-        if p4:
+        if p3 == 76:  # L
             goto .lbl_1037
-        # 1009: LT (BP+-2), #48, (BP+-1)
-        p4 = int(p3 < 48)
-        # 1013: JMPT (BP+-1), #1124
+        p4 = int(p3 < 48)  # symbol
         if p4:
             goto .lbl_1124
-        # 1016: LT #57, (BP+-2), (BP+-1)
-        p4 = int(57 < p3)
-        # 1020: JMPT (BP+-1), #1124
+        p4 = int(57 < p3)  # not a digit
         if p4:
             goto .lbl_1124
-        # 1023: ADD (BP+-2), #-48, (BP+-2)
-        p3 -= 48
-        # 1027: JMPT #1, #1041
+        p3 -= 48           # digit
         pass # 1
         goto .lbl_1041
-        # 1030: MUL #-4, #1, (BP+-2)
-        label .lbl_1030
+        label .lbl_1030  # Got R
         p3 = -4
-        # 1034: JMPT #1, #1041
         pass # 1
         goto .lbl_1041
-        # 1037: ADD #-5, #0, (BP+-2)
-        label .lbl_1037
+        label .lbl_1037  # Got L
         p3 = -5
-        # 1041: ADD (BP+-4), #1, (BP+-4)
-        label .lbl_1041
+        label .lbl_1041  # Got L or R
         p1 += 1
-        # 1045: LT (BP+-4), #11, (BP+-1)
         p4 = int(p1 < 11)
-        # 1049: JMPF (BP+-1), #1138
         if not p4:
             goto .lbl_1138
-        # 1052: ADD (BP+-5), (BP+-4), (1059)
         self.mem[1059] = p0 + p1
-        # 1056: ADD (BP+-2), #0, (0)
         self.mem[self.mem[1059]] = p3
-        # 1060: IN (BP+-2)
         label .lbl_1060
         p3 = self.input()
-        # 1062: ADD #1, (BP+-3), (BP+-3)
         p2 += 1
-        # 1066: LT (BP+-2), #48, (BP+-1)
         p4 = int(p3 < 48)
-        # 1070: JMPT (BP+-1), #1107
         if p4:
             goto .lbl_1107
-        # 1073: LT #57, (BP+-2), (BP+-1)
         p4 = int(57 < p3)
-        # 1077: JMPT (BP+-1), #1107
         if p4:
             goto .lbl_1107
-        # 1080: ADD (BP+-2), #-48, (BP+-2)
         p3 -= 48
-        # 1084: ADD (BP+-5), (BP+-4), (1090)
-        self.mem[1090] = p0 + p1
-        # 1088: MUL #10, (0), (BP+-1)
-        p4 = 10 * self.mem[self.mem[1090]]
-        # 1092: ADD (BP+-2), (BP+-1), (BP+-2)
+        p4 = 10 * self.mem[p0 + p1]
         p3 += p4
-        # 1096: ADD (BP+-5), (BP+-4), (1103)
-        self.mem[1103] = p0 + p1
-        # 1100: ADD (BP+-2), #0, (0)
-        self.mem[self.mem[1103]] = p3
-        # 1104: JMPF #0, #1060
-        pass # 1
+        self.mem[p0 + p1] = p3
         goto .lbl_1060
-        # 1107: EQ (BP+-2), #10, (BP+-1)
         label .lbl_1107
         p4 = int(p3 == 10)
-        # 1111: JMPT (BP+-1), #1162
         if p4:
             goto .lbl_1162
-        # 1114: EQ (BP+-2), #44, (BP+-1)
         p4 = int(p3 == 44)
-        # 1118: JMPF (BP+-1), #1131
         if not p4:
             goto .lbl_1131
-        # 1121: JMPT #1, #989
-        pass # 1
         goto .lbl_989
-        # 1124: ADD #439, #0, (BP+1)
         label .lbl_1124
         q0 = 439
-        # 1128: JMPT #1, #1150
-        pass # 1
         goto .lbl_1150
-        # 1131: MUL #1, #477, (BP+1)
         label .lbl_1131
         q0 = 477
-        # 1135: JMPF #0, #1150
-        pass # 1
         goto .lbl_1150
-        # 1138: ADD #514, #0, (BP+1)
         label .lbl_1138
         q0 = 514
-        # 1142: ADD #0, #1149, (BP+0)
-        # 1146: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        # 1149: HALT 
+        q0 = self.output_string(q0)
         raise MachineHaltedException()
-        # 1150: ADD #1157, #0, (BP+0)
         label .lbl_1150
-        # 1154: JMPT #1, #579
-        (q0, q1, q2) = self.func579(q0)
-        # 1157: OUT (BP+-2)
+        self.output_string(q0)  # bad input
         self.output(p3)
-        # 1159: OUT #10
         self.output(10)
-        # 1161: HALT 
         raise MachineHaltedException()
-        # 1162: LT (BP+-3), #22, (BP+-1)
         label .lbl_1162
         p4 = int(p2 < 22)
-        # 1166: JMPF (BP+-1), #1138
         if not p4:
             goto .lbl_1138
-        # 1169: ADD (BP+-5), #0, (1176)
         self.mem[1176] = p0
-        # 1173: ADD #0, (BP+-4), (0)
         self.mem[self.mem[1176]] = p1
-        # 1177: ADD_BP #-6
-        # 1179: JMPF #0, (BP+0)
-        pass # 0
-        return (p0, p1, p2, p3, p4)
+        return p0
 
-    # 1182: DB 28, 9, 36, 1, 36, 1, 36, 1, 36, 1, 36
-    # 1193: DB 1, 26, 9, 1, 1, 26, 1, 7, 1, 1, 1
-    # 1204: DB 22, 11, 1, 1, 1, 1, 22, 1, 3, 1, 5
-    # 1215: DB 1, 1, 1, 1, 1, 2, 13, 7, 1, 3, 11
-    # 1226: DB 2, 1, 11, 1, 7, 1, 9, 1, 1, 1, 4
-    # 1237: DB 1, 11, 1, 7, 1, 9, 1, 1, 1, 4, 1
-    # 1248: DB 11, 1, 7, 1, 9, 1, 1, 1, 4, 1, 5
-    # 1259: DB 13, 1, 1, 9, 1, 1, 1, 4, 1, 5, 1
-    # 1270: DB 5, 1, 5, 1, 1, 1, 9, 1, 1, 1, 2
-    # 1281: DB 11, 3, 1, 5, 1, 1, 13, 2, 1, 1, 1
-    # 1292: DB 5, 1, 1, 1, 3, 1, 5, 1, 11, 1, 4
-    # 1303: DB 1, 1, 1, 5, 1, 1, 1, 3, 1, 5, 13
-    # 1314: DB 4, 1, 1, 1, 5, 1, 1, 1, 3, 1, 22
-    # 1325: DB 1, 1, 9, 3, 1, 15, 1, 6, 1, 7, 1
-    # 1336: DB 5, 1, 15, 1, 6, 1, 7, 1, 1, 5, 15
-    # 1347: DB 1, 6, 1, 7, 1, 1, 1, 19, 1, 6, 1
-    # 1358: DB 7, 1, 1, 1, 19, 1, 6, 1, 7, 1, 1
-    # 1369: DB 1, 19, 1, 6, 9, 1, 1, 19, 1, 16, 1
-    # 1380: DB 19, 1, 12, 13, 11, 1, 12, 1, 3, 1, 7
-    # 1391: DB 1, 11, 1, 12, 1, 3, 1, 7, 1, 11, 1
-    # 1402: DB 12, 1, 3, 1, 7, 1, 11, 1, 12, 1, 3
-    # 1413: DB 1, 1, 5, 1, 13, 12, 1, 3, 1, 1, 1
-    # 1424: DB 3, 1, 26, 1, 3, 13, 20, 1, 5, 1, 3
-    # 1435: DB 1, 5, 1, 20, 1, 5, 1, 3, 1, 5, 1
-    # 1446: DB 20, 1, 5, 1, 3, 1, 5, 1, 20, 1, 5
-    # 1457: DB 1, 3, 1, 5, 1, 20, 1, 5, 1, 3, 1
-    # 1468: DB 5, 1, 20, 11, 5, 1, 26, 1, 9, 1, 26
+    # 1182: DB 28, 9, 36, 1, 36, 1, 36, 1, 36, 1, 36                  ..$.$.$.$.$
+    # 1193: DB 1, 26, 9, 1, 1, 26, 1, 7, 1, 1, 1                      ...........
+    # 1204: DB 22, 11, 1, 1, 1, 1, 22, 1, 3, 1, 5                     ...........
+    # 1215: DB 1, 1, 1, 1, 1, 2, 13, 7, 1, 3, 11                      ...........
+    # 1226: DB 2, 1, 11, 1, 7, 1, 9, 1, 1, 1, 4                       ...........
+    # 1237: DB 1, 11, 1, 7, 1, 9, 1, 1, 1, 4, 1                       ...........
+    # 1248: DB 11, 1, 7, 1, 9, 1, 1, 1, 4, 1, 5                       ...........
+    # 1259: DB 13, 1, 1, 9, 1, 1, 1, 4, 1, 5, 1                       ...........
+    # 1270: DB 5, 1, 5, 1, 1, 1, 9, 1, 1, 1, 2                        ...........
+    # 1281: DB 11, 3, 1, 5, 1, 1, 13, 2, 1, 1, 1                      ...........
+    # 1292: DB 5, 1, 1, 1, 3, 1, 5, 1, 11, 1, 4                       ...........
+    # 1303: DB 1, 1, 1, 5, 1, 1, 1, 3, 1, 5, 13                       ...........
+    # 1314: DB 4, 1, 1, 1, 5, 1, 1, 1, 3, 1, 22                       ...........
+    # 1325: DB 1, 1, 9, 3, 1, 15, 1, 6, 1, 7, 1                       ...........
+    # 1336: DB 5, 1, 15, 1, 6, 1, 7, 1, 1, 5, 15                      ...........
+    # 1347: DB 1, 6, 1, 7, 1, 1, 1, 19, 1, 6, 1                       ...........
+    # 1358: DB 7, 1, 1, 1, 19, 1, 6, 1, 7, 1, 1                       ...........
+    # 1369: DB 1, 19, 1, 6, 9, 1, 1, 19, 1, 16, 1                     ...........
+    # 1380: DB 19, 1, 12, 13, 11, 1, 12, 1, 3, 1, 7                   ...........
+    # 1391: DB 1, 11, 1, 12, 1, 3, 1, 7, 1, 11, 1                     ...........
+    # 1402: DB 12, 1, 3, 1, 7, 1, 11, 1, 12, 1, 3                     ...........
+    # 1413: DB 1, 1, 5, 1, 13, 12, 1, 3, 1, 1, 1                      ...........
+    # 1424: DB 3, 1, 26, 1, 3, 13, 20, 1, 5, 1, 3                     ...........
+    # 1435: DB 1, 5, 1, 20, 1, 5, 1, 3, 1, 5, 1                       ...........
+    # 1446: DB 20, 1, 5, 1, 3, 1, 5, 1, 20, 1, 5                      ...........
+    # 1457: DB 1, 3, 1, 5, 1, 20, 1, 5, 1, 3, 1                       ...........
+    # 1468: DB 5, 1, 20, 11, 5, 1, 26, 1, 9, 1, 26                    ...........
     # 1479: DB 11
     funcs = {
-      0: func0, 579: func579, 622: func622, 786: func786, 979: func979
+      0: func0, 579: output_string, 622: func622, 786: show_map, 979: input_string
     }
 
     code = [
@@ -723,13 +390,13 @@ class DecompiledProgram(DecompiledProgramBase):
         32,103,111,116,58,32,0,12,70,117,110,99,116,105,111,110,                #  got: ..Function
         32,65,58,10,12,70,117,110,99,116,105,111,110,32,66,58,                  #  A:..Function B:
         10,12,70,117,110,99,116,105,111,110,32,67,58,10,23,67,                  # ..Function C:..C
-        111,110,116,105,110,117,111,117,115,32,118,105,100,101,111,32,          # ontinuous video 
+        111,110,116,105,110,117,111,117,115,32,118,105,100,101,111,32,          # ontinuous video
         102,101,101,100,63,10,0,37,10,69,120,112,101,99,116,101,                # feed?..%.Expecte
         100,32,82,44,32,76,44,32,111,114,32,100,105,115,116,97,                 # d R, L, or dista
         110,99,101,32,98,117,116,32,103,111,116,58,32,36,10,69,                 # nce but got: $.E
         120,112,101,99,116,101,100,32,99,111,109,109,97,32,111,114,             # xpected comma or
         32,110,101,119,108,105,110,101,32,98,117,116,32,103,111,116,            #  newline but got
-        58,32,43,10,68,101,102,105,110,105,116,105,111,110,115,32,              # : +.Definitions 
+        58,32,43,10,68,101,102,105,110,105,116,105,111,110,115,32,              # : +.Definitions
         109,97,121,32,98,101,32,97,116,32,109,111,115,116,32,50,                # may be at most 2
         48,32,99,104,97,114,97,99,116,101,114,115,33,10,94,62,                  # 0 characters!.^>
         118,60,0,1,0,-1,-1,0,1,0,0,0,0,0,0,1,                                   # v<..............
