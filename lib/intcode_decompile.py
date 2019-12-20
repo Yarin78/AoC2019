@@ -108,7 +108,10 @@ class Node:
                                 call_vars = ', '.join(['q%d' % x for x in range(num_set)])
                                 mem_addr = param_str[1]
                                 if call_vars:
-                                    code = '(%s) = self.funcs[%s](self, %s)' % (call_vars, mem_addr, call_vars)
+                                    ret_vars = '(%s)' % call_vars
+                                    if not self.decompiler.config['return_all']:
+                                        ret_vars = 'q0'
+                                    code = '%s = self.funcs[%s](self, %s)' % (ret_vars, mem_addr, call_vars)
                                 else:
                                     code = 'self.funcs[%s](self)' % mem_addr
                             else:
@@ -648,6 +651,8 @@ class Decompiler:
                             else:
                                 logging.warning('Target address of %s at %d not known; dynamic dispatching will be used' % (jump_type, ip))
                                 func_calls[ip] = (None, ret_addr[ip-4])
+                                if jump_type == 'call':
+                                    heapq.heappush(ipq, ret_addr[ip-4])
                     else:
                         # The jump may not happen
                         heapq.heappush(ipq, ip + opcode_len)
