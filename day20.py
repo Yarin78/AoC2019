@@ -9,6 +9,8 @@ from lib.intcode import *
 from aocd import data, submit
 
 lines = data.split('\n')
+#with open("day20.input.txt") as f:
+#    lines = f.readlines()
 
 ysize = len(lines)-4
 xsize = len(lines[2])-2
@@ -71,14 +73,18 @@ dist = bfs(g, start)
 print(dist[goal])
 
 dist = {}  # node -> distance
+dist_rev = {}
 q = Queue()
 q.put((start, 0))
+q.put((goal, 0))
 dist[(start, 0)] = 0
+dist_rev[(goal, 0)] = 0
 while not q.empty():
     (current, cur_lvl) = q.get()
-    steps = dist[(current, cur_lvl)]
-    if current == goal and cur_lvl == 0:
-        print(steps)
+    forward_steps = dist.get((current, cur_lvl))
+    backward_steps = dist_rev.get((current, cur_lvl))
+    if forward_steps is not None and backward_steps is not None:
+        print(forward_steps + backward_steps)
         break
     for neighbor in g.get(current, []):
         next_lvl = cur_lvl
@@ -87,7 +93,13 @@ while not q.empty():
         if next_lvl >= 0:
             np = (neighbor, next_lvl)
 
-            if np not in dist:
-                dist[np] = steps + 1
-                q.put(np)
+            if forward_steps is not None:
+                if np not in dist:
+                    dist[np] = forward_steps + 1
+                    q.put(np)
+            else:
+                if np not in dist_rev:
+                    dist_rev[np] = backward_steps + 1
+                    q.put(np)
 
+print('# visited states', len(dist))
