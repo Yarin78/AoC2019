@@ -189,7 +189,7 @@ class Program(object):
 
     def read_line(self):
         s = ''
-        while not self.halted and not self.blocked_on_input:
+        while (not self.halted and not self.blocked_on_input) or not self._output.empty():
             while not self._output.empty():
                 c = self._output.get()
                 if c == 10:

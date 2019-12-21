@@ -254,7 +254,7 @@ class Function:
             return 'self.%s()' % self.name()
         call_params = ', '.join(['q%d' % x for x in range(min(num_params_set, self.frame_size - 1))])
         if self.frame_size == 1:
-            return 'self.%s(%s)' % (ret_params, self.name(), call_params)
+            return 'self.%s(%s)' % (self.name(), call_params)
         if not self.decompiler.config['return_all']:
             return 'q0 = self.%s(%s)' % (self.name(), call_params)
         ret_params = ', '.join(['q%d' % x for x in range(self.frame_size - 1)])
