@@ -16,8 +16,8 @@ def run_springscript(code):
     prog.init_io(Queue(), Queue())
     print(prog.read_line())  # Input instructions:
     for line in code.strip().split('\n'):
-        print(line)
-        prog.write_line(line)
+        if line:
+            prog.write_line(line)
     prog.run_until_halted()
     prog._output.get()
     print(prog.read_line())  # Walking
