@@ -650,7 +650,8 @@ class Decompiler:
                                 logging.warning('Target address of %s at %d was relative but not a return statement; more investigation needed' % (jump_type, ip))
                             else:
                                 logging.warning('Target address of %s at %d not known; dynamic dispatching will be used' % (jump_type, ip))
-                                func_calls[ip] = (None, ret_addr[ip-4])
+                                if ip-4 in ret_addr:
+                                    func_calls[ip] = (None, ret_addr[ip-4])
                                 if jump_type == 'call':
                                     heapq.heappush(ipq, ret_addr[ip-4])
                     else:

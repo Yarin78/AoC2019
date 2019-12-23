@@ -317,7 +317,7 @@ class Program(object):
                     (_, _, length, _) = self.opcodes[opcode]
                     addr += length
                 else:
-                    code = 'DB %d' % opcode
+                    code = 'DB %d' % self.mem[addr]
                     asm = ''
                     addr += 1
 
