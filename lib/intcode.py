@@ -215,7 +215,7 @@ class Program(object):
             param_mode = opcode // 100
             opcode %= 100
             if opcode not in self.opcodes:
-                raise UnknownOpcodeException()
+                raise UnknownOpcodeException('unknown opcode %d at addr %d' % (opcode, self.ip))
             (instr, mnemonic, length, write_par) = self.opcodes[opcode]
             params = []
             for i in range(1, length):

@@ -11,24 +11,21 @@ from lib.mod_prime import *
 
 
 lines = data.strip().split('\n')
-deck = list(range(10007))
+n = 10007
 
-n = len(deck)
+# all operations are on the formula ax+b, represented as a tuple (a,b)
+
+pos = 2019
 for line in lines:
     if line == "deal into new stack":
-        deck.reverse()
+        op = (-1, n-1)
     elif line.startswith("cut"):
         cut = int(line[4:])
-        deck = deck[cut:] + deck[:cut]
+        op = (1, -cut)
     else:
         assert line.startswith("deal with increment")
         incr = int(line[20:])
-        new_deck = []
-        for i in range(n):
-            j = i
-            while j % incr != 0:
-                j += n
-            new_deck.append(deck[j // incr])
-        deck = new_deck
+        op = (incr, 0)
+    pos = (pos*op[0]+op[1]) % n
 
-print(deck.index(2019))
+print(pos)
