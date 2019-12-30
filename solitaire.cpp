@@ -116,13 +116,14 @@ int main() {
     unordered_set<LL> seen;
     q.push(start);
     seen.insert(start);
+    LL cur;
     while (!q.empty()) {
         numStates += 1;
         if (numStates % 100000 == 0) {
             cout << numStates << " states visited" << endl;
         }
 
-        LL cur = q.front();
+        cur = q.front();
         q.pop();
 
         if (bitcnt(cur) != pegsLeft) {
@@ -150,12 +151,17 @@ int main() {
             show(cur);
             cout << endl;
         }
+        /*
         if (!hasMoves) {
             cout << "Done; the following position with " << pegsLeft << " pegs left has no moves:" << endl;
             show(cur);
             break;
         }
+        */
     }
+
+    cout << "Last position:" << endl;
+    show(cur);
 
     return 0;
 }

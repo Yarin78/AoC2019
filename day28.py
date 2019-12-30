@@ -17,14 +17,23 @@ print('Size: %d' % len(prog.mem))
 #prog.show(0)
 #exit(0)
 
+inputs = []
+for a in range(0, 20):
+    for b in range(1, a+1):
+        inputs.append((a,b))
+for i in range(50):
+    b = random.randrange(1, 2**31)
+    c = random.randrange(1, 2**31)
+    a = b*c+random.randrange(1,b)
+    inputs.append((a,b))
+
 max_instr = 0
-for i in range(100):
-    a = random.randrange(0, 2**64)
-    b = random.randrange(1, a+1)
+for (a,b) in inputs:
     prog.reset()
     res = prog.run_until_next_io(feed_input=[a,b])
     if prog.count > max_instr:
         max_instr=prog.count
     assert res == a//b, '%d/%d = %d, expected %d' % (a, b, res, a//b)
+    #print(res, a//b)
 
 print(max_instr)

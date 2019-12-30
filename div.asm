@@ -1,13 +1,10 @@
-a:
+a = 0
+b = 1
+tmp = 2
+x = 3
+
   in (a)
-b:
   in (b)
-tmp:
-  eq (b), 1, (tmp)
-x:
-  jf (tmp), div
-  out (a)
-  halt
 div:
   mov (ptr), (NEXT+1)
   mul (0), 2, (tmp)

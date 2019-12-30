@@ -13,7 +13,7 @@ prog = Program(data)
 #prog.log_info()
 prog.init_io(Queue(), Queue())
 print('Size: %d' % len(prog.mem))
-#prog.show(0)
+prog.show(0)
 #exit(0)
 prog._input.put(123)
 while not prog.halted:
