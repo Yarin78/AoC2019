@@ -1,6 +1,6 @@
 import sys
 from collections import defaultdict
-from lib import util
+from yal import util
 from queue import Queue
 from aocd import data, submit
 
@@ -18,4 +18,4 @@ for line in lines:
         extra = extra_fuel
 
 #submit(mass, part="a", day=1, year=2019)
-submit(mass, part="b", day=1, year=2019)
+#submit(mass, part="b", day=1, year=2019)

@@ -1,9 +1,9 @@
 import sys
 from collections import defaultdict
-from lib import util
+from yal import util
 from queue import Queue
-from lib.geo2d import *
-from lib.intcode import *
+from yal.geo2d import *
+from intcode.intcode import *
 from aocd import data, submit
 from itertools import permutations
 

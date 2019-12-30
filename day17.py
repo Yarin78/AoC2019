@@ -2,10 +2,8 @@ import sys
 from queue import Queue
 from collections import defaultdict
 from itertools import permutations
-from lib.util import *
-from lib.graph import *
-from lib.geo2d import *
-from lib.intcode import *
+from yal.grid import *
+from intcode.intcode import *
 from aocd import data, submit
 
 lines = data.strip().split('\n')

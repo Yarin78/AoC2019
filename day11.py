@@ -2,10 +2,11 @@ import sys
 from queue import Queue
 from collections import defaultdict
 from itertools import permutations
-from lib import util
-from lib.graph import *
-from lib.geo2d import *
-from lib.intcode import *
+from yal import util
+from yal.grid import *
+from yal.graph import *
+from yal.geo2d import *
+from intcode.intcode import *
 from aocd import data, submit
 
 lines = data.strip().split('\n')
@@ -55,4 +56,4 @@ map[Point(0,0)] = 1
 prog.reset()
 prog.run(Reader(), Writer())
 
-util.print_array(util.gridify_sparse_map(map))
+print_array(gridify_sparse_map(map))

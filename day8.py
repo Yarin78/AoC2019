@@ -2,9 +2,8 @@ import sys
 from queue import Queue
 from collections import defaultdict
 from itertools import permutations, dropwhile
-from lib import util
-from lib.geo2d import *
-from lib.intcode import *
+from yal import util
+from yal.geo2d import *
 from aocd import data, submit
 
 # Clean up version, see day8.org.py for original

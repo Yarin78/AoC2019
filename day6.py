@@ -1,10 +1,7 @@
 import sys
 from collections import defaultdict
-from lib import util
 from queue import Queue
-from lib.geo2d import *
-from lib.intcode import *
-from lib.tree import Tree
+from yal.tree import Tree
 from aocd import data, submit
 
 # Cleaned up version; see day6.org.py for hacky submitted version

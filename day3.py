@@ -1,7 +1,7 @@
 import sys
 from collections import defaultdict
-from lib import util, intcode, geo2d
-from lib.geo2d import Point
+from yal import util, geo2d, grid
+from yal.geo2d import Point
 from queue import Queue
 from aocd import data, submit
 
@@ -23,7 +23,7 @@ for line_no in range(2):
     for j in range(len(parts)):
         s = parts[j]
 
-        delta = geo2d.DIRECTION_MAP[s[0]]
+        delta = grid.DIRECTION_MAP[s[0]]
         part_len = int(s[1:])
         for i in range(part_len):
             cur += delta

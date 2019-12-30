@@ -1,7 +1,8 @@
 from queue import Queue
-from lib.util import *
-from lib.geo2d import *
-from lib.intcode import *
+from yal.math import *
+from yal.grid import *
+from yal.geo2d import *
+from intcode.intcode import *
 from aocd import data
 
 

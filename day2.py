@@ -1,6 +1,7 @@
 import sys
 from collections import defaultdict
-from lib import util, intcode
+from yal import util
+from intcode import intcode
 from queue import Queue
 from aocd import data, submit
 
